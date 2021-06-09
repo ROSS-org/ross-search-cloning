@@ -1,18 +1,16 @@
-//The C mapping for a ROSS model
-//This file includes:
+// The C mapping for a ROSS model
+// This file includes:
 // - the required LP GID -> PE mapping function
 // - Commented out example of LPType map (when there multiple LP types)
 // - Commented out example of one set of custom mapping functions:
 //   - setup function to place LPs and KPs on PEs
 //   - local map function to find LP in local PE's array
 
-#include "model.h"
+#include "highlife.h"
 
-//Given an LP's GID (global ID)
-//return the PE (aka node, MPI Rank)
-tw_peid model_map(tw_lpid gid){
-  return (tw_peid) gid / g_tw_nlp;
-}
+// Given an LP's GID (global ID)
+// return the PE (aka node, MPI Rank)
+tw_peid model_map(tw_lpid gid) { return (tw_peid)gid / g_tw_nlp; }
 
 /*
 // Multiple LP Types mapping function
@@ -49,8 +47,8 @@ void model_custom_mapping(void){
   g_tw_lp_offset = g_tw_mynode * g_tw_nlp;
 
 #if VERIFY_MAPPING
-  prinf("NODE %d: nlp %lld, offset %lld\n", g_tw_mynode, g_tw_nlp, g_tw_lp_offset);
-#endif
+  prinf("NODE %d: nlp %lld, offset %lld\n", g_tw_mynode, g_tw_nlp,
+g_tw_lp_offset); #endif
 
   // Loop through each PE (node)
   for (kp_id = 0, lp_id = 0, pe = NULL; (pe = tw_pe_next(pe)); ) {
@@ -63,13 +61,14 @@ void model_custom_mapping(void){
       // Define each LP on the KP
       for (j = 0; j < nlp_per_kp && lp_id < g_tw_nlp; j++, lp_id++) {
 
-	tw_lp_onpe(lp_id, pe, g_tw_lp_offset + lp_id);
-	tw_lp_onkp(g_tw_lp[lp_id], g_tw_kp[kp_id]);
+        tw_lp_onpe(lp_id, pe, g_tw_lp_offset + lp_id);
+        tw_lp_onkp(g_tw_lp[lp_id], g_tw_kp[kp_id]);
 
 #if VERIFY_MAPPING
-	if (0 == j % 20) { // print detailed output for only some LPs
-	  printf("PE %d\tKP %d\tLP %d\n", pe->id, kp_id, (int) lp_id + g_tw_lp_offset);
-	}
+        if (0 == j % 20) { // print detailed output for only some LPs
+          printf("PE %d\tKP %d\tLP %d\n", pe->id, kp_id, (int) lp_id +
+g_tw_lp_offset);
+        }
 #endif
       }
     }

@@ -1,19 +1,27 @@
-# Usage
+# HighLife in ROSS
 
-If you are creating your own model feel free to fork this repository.
-As you develop, please replace "model" with appropriately descriptive names for your variables, files, and functions.
+This is a small model implementing [HighLife][] in [ROSS][], a (massively) parallel
+discrete event simulator.
 
-# Installation
+[HighLife]: https://conwaylife.com/wiki/OCA:HighLife
+[ROSS]: https://github.com/ROSS-org/ROSS
 
-This model can be built by ROSS by sym-linking it into the ROSS/models directory and building with `-DROSS_BUILD_MODELS=ON`
+# Compilation
 
-``` shell
-git clone https://github.com/ROSS-org/ROSS
-git clone https://github.com/ROSS-org/template-model
-cd ROSS/models
-ln -s ../../template-model ./
-cd ../
-mkdir build
-cmake ../ -DROSS_BUILD_MODELS=ON
+```bash
+git clone --depth=1 --single-branch https://github.com/ROSS-org/ROSS
+git clone <URL-TO-THIS-REPO>
+ln -s ../../highlife-model ROSS/models
+mkdir -P builds/highlife
+cd builds/highlife
+cmake ../../ROSS -DROSS_BUILD_MODELS=ON -DCMAKE_INSTALL_PREFIX="$(pwd)/binaries"
 make
+make install
+```
+
+# Execution
+
+```bash
+builds/highlife/binaries/bin/highlife
+mpirun -np 2 builds/highlife/binaries/bin/highlife --sync=2
 ```
