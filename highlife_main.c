@@ -12,19 +12,28 @@
 //   these are the functions called by ROSS for each LP
 //   multiple sets can be defined (for multiple LP types)
 tw_lptype model_lps[] = {
-    {(init_f)model_init, (pre_run_f)NULL, (event_f)model_event,
-     (revent_f)model_event_reverse, (commit_f)NULL, (final_f)model_final,
-     (map_f)model_map, sizeof(state)},
+    {(init_f)    highlife_init,
+     (pre_run_f) NULL,
+     (event_f)   highlife_event,
+     (revent_f)  highlife_event_reverse,
+     (commit_f)  NULL,
+     (final_f)   highlife_final,
+     (map_f)     highlife_map,
+     sizeof(state)},
     {0},
 };
 
 // Define command line arguments default values
-unsigned int setting_1 = 0;
+unsigned int init_pattern = 0;
+/*unsigned int world_width = 20;*/
+/*unsigned int world_height = 20;*/
 
 // add your command line opts
 const tw_optdef model_opts[] = {
-    TWOPT_GROUP("ROSS Model"),
-    TWOPT_UINT("setting_1", setting_1, "first setting for this model"),
+    TWOPT_GROUP("HighLife"),
+    TWOPT_UINT("pattern", init_pattern, "initial pattern for HighLife world"),
+    /*TWOPT_UINT("width", world_width, "world width for LP"),*/
+    /*TWOPT_UINT("height", world_height, "world height for LP"),*/
     TWOPT_END(),
 };
 
@@ -32,8 +41,6 @@ const tw_optdef model_opts[] = {
 #define model_main main
 
 int model_main(int argc, char *argv[]) {
-  int num_lps_per_pe;
-
   tw_opt_add(model_opts);
   tw_init(&argc, &argv);
 
@@ -58,8 +65,8 @@ int model_main(int argc, char *argv[]) {
   // g_tw_nkp
   // g_tw_synchronization_protocol
 
-  // assume 1 lp per node
-  num_lps_per_pe = 1;
+  // assume 1 lp in this node
+  int num_lps_per_pe = 1;
 
   // set up LPs within ROSS
   tw_define_lps(num_lps_per_pe, sizeof(message));
