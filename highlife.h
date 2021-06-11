@@ -32,7 +32,7 @@ typedef struct {
   message_type type;
   tw_lpid sender;
   row_direction dir;
-  //unsigned char row[W_WIDTH];
+  unsigned char row[W_WIDTH];
   unsigned char rev_state[W_WIDTH * W_HEIGHT]; // Storing the previous state to be recovered by the reverse message
 } message;
 

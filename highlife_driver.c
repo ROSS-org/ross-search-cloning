@@ -76,6 +76,14 @@ static inline void HL_initReplicator(state *s) {
   s->grid[x + (y + 3) * W_WIDTH] = 1;
 }
 
+static inline void HL_initDiagonal(state *s) {
+  HL_initAllZeros(s);
+
+  for (int i = 0; i < W_WIDTH && i < W_HEIGHT; i++) {
+      s->grid[i*W_WIDTH + i] = 1;
+  }
+}
+
 static inline void HL_printWorld(FILE *stream, state *s) {
   size_t i, j;
 
@@ -165,13 +173,57 @@ void HL_iterateSerial(unsigned char *grid, unsigned char *grid_msg) {
   }
 }
 
-void HL_swap(unsigned char *grid, unsigned char *grid_msg) {
+void HL_swap(unsigned char *grid, unsigned char *grid_msg, size_t n_cells) {
   unsigned char tmp;
-  for (size_t i = 0; i < W_WIDTH * W_HEIGHT; i++) {
+  for (size_t i = 0; i < n_cells; i++) {
     tmp = grid_msg[i];
     grid_msg[i] = grid[i];
     grid[i] = tmp;
   }
+}
+
+static inline void copy_row(unsigned char *into, unsigned char *from) {
+  for (int i = 0; i < W_WIDTH; i++) {
+    into[i] = from[i];
+  }
+}
+
+void send_tick(tw_lp *lp) {
+  int self = lp->gid;
+  tw_event *e = tw_event_new(self, 1, lp);
+  message *msg = tw_event_data(e);
+  msg->type = STEP;
+  msg->sender = self;
+  tw_event_send(e);
+}
+
+void print_row(unsigned char *row) {
+  for (size_t i = 0; i < W_WIDTH; i++) {
+    printf("%d ", row[i]);
+  }
+  printf("\n");
+}
+
+void send_rows(state *s, tw_lp *lp) {
+  int self = lp->gid;
+
+  // Sending rows to update
+  int lp_id_up = (self + g_tw_total_lps - 1) % g_tw_total_lps;
+  int lp_id_down = (self+1) % g_tw_total_lps;
+
+  tw_event *e_drow = tw_event_new(lp_id_up, 0.5, lp);
+  message *msg_drow = tw_event_data(e_drow);
+  msg_drow->type = ROW_UPDATE;
+  msg_drow->dir = DOWN_ROW; // Other LP's down row, not mine
+  copy_row(msg_drow->row, s->grid + (W_WIDTH));
+  tw_event_send(e_drow);
+
+  tw_event *e_urow = tw_event_new(lp_id_down, 0.5, lp);
+  message *msg_urow = tw_event_data(e_urow);
+  msg_urow->type = ROW_UPDATE;
+  msg_urow->dir = UP_ROW;
+  copy_row(msg_urow->row, s->grid + (W_WIDTH * (W_HEIGHT - 2)));
+  tw_event_send(e_urow);
 }
 
 // Init function
@@ -186,6 +238,7 @@ void highlife_init(state *s, tw_lp *lp) {
   case 3: HL_initOnesAtCorners(s); break;
   case 4: HL_initSpinnerAtCorner(s); break;
   case 5: HL_initReplicator(s); break;
+  case 6: HL_initDiagonal(s); break;
   default:
     printf("Pattern %u has not been implemented \n", init_pattern);
     /*exit(-1);*/
@@ -206,18 +259,14 @@ void highlife_init(state *s, tw_lp *lp) {
     HL_printWorld(fp, s);
   }
 
-  // Init message to myself
-  tw_event *e = tw_event_new(self, 1, lp);
-  message *msg = tw_event_data(e);
-  msg->type = STEP;
-  msg->sender = self;
-  tw_event_send(e);
+  // Tick message to myself
+  send_tick(lp);
+  // Sending rows to update
+  send_rows(s, lp);
 }
 
 // Forward event handler
 void highlife_event(state *s, tw_bf *bf, message *in_msg, tw_lp *lp) {
-  int self = lp->gid;
-
   // initialize the bit field
   (void)bf;
   //*(int *)bf = (int)0;
@@ -228,20 +277,27 @@ void highlife_event(state *s, tw_bf *bf, message *in_msg, tw_lp *lp) {
     // Next step in the simulation (is stored in second parameter)
     HL_iterateSerial(s->grid, in_msg->rev_state);
     // Exchanging parameters from one site to the other
-    HL_swap(s->grid, in_msg->rev_state);
+    HL_swap(s->grid, in_msg->rev_state, W_WIDTH * W_HEIGHT);
+    s->steps++;
+    // Sending tick for next STEP
+    send_tick(lp);
+    // Sending rows to update
+    send_rows(s, lp);
     break;
-  case ROW_UPDATE:
-    break;
-  default:
-    printf("Unhandeled forward message type %d\n", in_msg->type);
-  }
-  s->steps++;
 
-  tw_event *e = tw_event_new(self, 1, lp);
-  message *msg = tw_event_data(e);
-  msg->type = STEP;
-  msg->sender = self;
-  tw_event_send(e);
+  case ROW_UPDATE:
+    print_row(in_msg->row);
+    switch (in_msg->dir) {
+    case UP_ROW:
+      HL_swap(s->grid, in_msg->row, W_WIDTH);
+      break;
+    case DOWN_ROW:
+      HL_swap(s->grid + W_WIDTH*(W_HEIGHT-1), in_msg->row, W_WIDTH);
+      /*HL_printWorld(stdout, s);*/
+      break;
+    }
+    break;
+  }
 
   // tw_output(lp, "Hello from %d\n", self);
 }
@@ -255,11 +311,19 @@ void highlife_event_reverse(state *s, tw_bf *bf, message *in_msg, tw_lp *lp) {
   // handle the message
   switch (in_msg->type) {
   case STEP:
-      HL_swap(s->grid, in_msg->rev_state);
+    s->steps--;
+    HL_swap(s->grid, in_msg->rev_state, W_WIDTH * W_HEIGHT);
+    break;
+  case ROW_UPDATE:
+    switch (in_msg->dir) {
+    case UP_ROW:
+      HL_swap(s->grid, in_msg->row, W_WIDTH);
       break;
-  case ROW_UPDATE: break;
-  default:
-    printf("Unhandeled reverse message type %d\n", in_msg->type);
+    case DOWN_ROW:
+      HL_swap(s->grid + W_WIDTH*(W_HEIGHT-1), in_msg->row, W_WIDTH);
+      break;
+    }
+    break;
   }
 }
 
