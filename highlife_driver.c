@@ -13,15 +13,6 @@
 
 FILE *fp;
 
-// Helper Functions
-/*
- *static inline void SWAP(double *a, double *b) {
- *  double tmp = *a;
- *  *a = *b;
- *  *b = tmp;
- *}
- */
-
 static inline void HL_initAllZeros(state *s) {
   for (size_t i = 0; i < W_WIDTH * W_HEIGHT; i++) {
       s->grid[i] = 0;
@@ -29,7 +20,8 @@ static inline void HL_initAllZeros(state *s) {
 }
 
 static inline void HL_initAllOnes(state *s) {
-  for (size_t i = 0; i < W_WIDTH * W_HEIGHT; i++) {
+  HL_initAllZeros(s);
+  for (size_t i = W_WIDTH; i < W_WIDTH * (W_HEIGHT - 1); i++) {
       s->grid[i] = 1;
   }
 }
@@ -44,36 +36,43 @@ static inline void HL_initOnesInMiddle(state *s) {
   }
 }
 
-static inline void HL_initOnesAtCorners(state *s) {
+static inline void HL_initOnesAtCorners(state *s, unsigned long self) {
   HL_initAllZeros(s);
 
-  s->grid[0] = 1;                                         // upper left
-  s->grid[W_WIDTH - 1] = 1;                               // upper right
-  s->grid[(W_HEIGHT * (W_WIDTH - 1))] = 1;                // lower left
-  s->grid[(W_HEIGHT * (W_WIDTH - 1)) + W_WIDTH - 1] = 1;  // lower right
+  if (self == 0) {
+    s->grid[W_WIDTH] = 1;                                   // upper left
+    s->grid[2 * W_WIDTH - 1] = 1;                           // upper right
+  } else if (self == g_tw_total_lps - 1) {
+    s->grid[(W_WIDTH * (W_HEIGHT - 2))] = 1;                // lower left
+    s->grid[(W_WIDTH * (W_HEIGHT - 2)) + W_WIDTH - 1] = 1;  // lower right
+  }
 }
 
-static inline void HL_initSpinnerAtCorner(state *s) {
+static inline void HL_initSpinnerAtCorner(state *s, unsigned long self) {
   HL_initAllZeros(s);
 
-  s->grid[0] = 1;            // upper left
-  s->grid[1] = 1;            // upper left +1
-  s->grid[W_WIDTH - 1] = 1;  // upper right
+  if (self == 0) {
+    s->grid[W_WIDTH] = 1;            // upper left
+    s->grid[W_WIDTH+1] = 1;            // upper left +1
+    s->grid[2*W_WIDTH - 1] = 1;  // upper right
+  }
 }
 
-static inline void HL_initReplicator(state *s) {
+static inline void HL_initReplicator(state *s, unsigned long self) {
   HL_initAllZeros(s);
 
-  size_t x, y;
-  x = W_WIDTH / 2;
-  y = W_HEIGHT / 2;
+  if (self == 0) {
+    size_t x, y;
+    x = W_WIDTH / 2;
+    y = W_HEIGHT / 2;
 
-  s->grid[x + y * W_WIDTH + 1] = 1;
-  s->grid[x + y * W_WIDTH + 2] = 1;
-  s->grid[x + y * W_WIDTH + 3] = 1;
-  s->grid[x + (y + 1) * W_WIDTH] = 1;
-  s->grid[x + (y + 2) * W_WIDTH] = 1;
-  s->grid[x + (y + 3) * W_WIDTH] = 1;
+    s->grid[x + y * W_WIDTH + 1] = 1;
+    s->grid[x + y * W_WIDTH + 2] = 1;
+    s->grid[x + y * W_WIDTH + 3] = 1;
+    s->grid[x + (y + 1) * W_WIDTH] = 1;
+    s->grid[x + (y + 2) * W_WIDTH] = 1;
+    s->grid[x + (y + 3) * W_WIDTH] = 1;
+  }
 }
 
 static inline void HL_initDiagonal(state *s) {
@@ -84,17 +83,28 @@ static inline void HL_initDiagonal(state *s) {
   }
 }
 
-static inline void HL_printWorld(FILE *stream, state *s) {
+void HL_printWorld(FILE *stream, state *s) {
   size_t i, j;
 
   fprintf(stream, "Print World - Iteration %d\n", s->steps);
 
-  for (i = 0; i < W_HEIGHT; i++) {
+  fprintf(stream, "Ghost row: ");
+  for (j = 0; j < W_WIDTH; j++) {
+    fprintf(stream, "%u ", (unsigned int)s->grid[j]);
+  }
+  fprintf(stream, "\n");
+
+  for (i = 1; i < W_HEIGHT-1; i++) {
     fprintf(stream, "Row %2zu: ", i);
     for (j = 0; j < W_WIDTH; j++) {
-        fprintf(stream, "%u ", (unsigned int)s->grid[(i * W_WIDTH) + j]);
+      fprintf(stream, "%u ", (unsigned int)s->grid[(i * W_WIDTH) + j]);
     }
     fprintf(stream, "\n");
+  }
+
+  fprintf(stream, "Ghost row: ");
+  for (j = 0; j < W_WIDTH; j++) {
+    fprintf(stream, "%u ", (unsigned int)s->grid[(i * W_WIDTH) + j]);
   }
   fprintf(stream, "\n");
 }
@@ -229,15 +239,15 @@ void send_rows(state *s, tw_lp *lp) {
 // Init function
 // - called once for each LP
 void highlife_init(state *s, tw_lp *lp) {
-  int self = lp->gid;
+  unsigned long self = lp->gid;
 
   switch (init_pattern) {
   case 0: HL_initAllZeros(s); break;
   case 1: HL_initAllOnes(s); break;
   case 2: HL_initOnesInMiddle(s); break;
-  case 3: HL_initOnesAtCorners(s); break;
-  case 4: HL_initSpinnerAtCorner(s); break;
-  case 5: HL_initReplicator(s); break;
+  case 3: HL_initOnesAtCorners(s, self); break;
+  case 4: HL_initSpinnerAtCorner(s, self); break;
+  case 5: HL_initReplicator(s, self); break;
   case 6: HL_initDiagonal(s); break;
   default:
     printf("Pattern %u has not been implemented \n", init_pattern);
@@ -257,6 +267,7 @@ void highlife_init(state *s, tw_lp *lp) {
     MPI_Abort(MPI_COMM_WORLD, -1);
   } else {
     HL_printWorld(fp, s);
+    fprintf(fp, "\n");
   }
 
   // Tick message to myself
@@ -286,7 +297,6 @@ void highlife_event(state *s, tw_bf *bf, message *in_msg, tw_lp *lp) {
     break;
 
   case ROW_UPDATE:
-    print_row(in_msg->row);
     switch (in_msg->dir) {
     case UP_ROW:
       HL_swap(s->grid, in_msg->row, W_WIDTH);

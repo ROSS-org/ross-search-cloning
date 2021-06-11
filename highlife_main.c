@@ -64,6 +64,7 @@ int model_main(int argc, char *argv[]) {
   // g_tw_nlp
   // g_tw_nkp
   // g_tw_synchronization_protocol
+  // g_tw_total_lps
 
   // assume 1 lp in this node
   int num_lps_per_pe = 1;

@@ -11,9 +11,10 @@
 
 #include "ross.h"
 
+// TODO: Fix code because changing W_WIDTH to be different than W_HEIGHT breaks the execution
 // HighLife Parameters
 #define W_WIDTH 20
-#define W_HEIGHT 20
+#define W_HEIGHT (20 + 2)
 
 // Message enums and structs
 
