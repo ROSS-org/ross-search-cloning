@@ -67,10 +67,10 @@ int model_main(int argc, char *argv[]) {
   // g_tw_total_lps
 
   // assume 1 lp in this node
-  int num_lps_per_pe = 1;
+  int num_lps_in_pe = 1;
 
   // set up LPs within ROSS
-  tw_define_lps(num_lps_per_pe, sizeof(message));
+  tw_define_lps(num_lps_in_pe, sizeof(message));
   // note that g_tw_nlp gets set here by tw_define_lps
 
   // IF there are multiple LP types

@@ -11,8 +11,6 @@
 #include "highlife.h"
 #include "ross.h"
 
-FILE *fp;
-
 static inline void HL_initAllZeros(state *s) {
   for (size_t i = 0; i < W_WIDTH * W_HEIGHT; i++) {
       s->grid[i] = 0;
@@ -79,7 +77,7 @@ static inline void HL_initDiagonal(state *s) {
   HL_initAllZeros(s);
 
   for (int i = 0; i < W_WIDTH && i < W_HEIGHT; i++) {
-      s->grid[i*W_WIDTH + i] = 1;
+      s->grid[(i+1)*W_WIDTH + i] = 1;
   }
 }
 
@@ -128,7 +126,7 @@ void HL_iterateSerial(unsigned char *grid, unsigned char *grid_msg) {
   // transition of the game of life.
   // The first loop runs the transition a number of times (`iterations`
   // times).
-  for (size_t y = 0; y < W_HEIGHT; ++y) {
+  for (size_t y = 1; y < W_HEIGHT-1; ++y) {
     // This seems oddly complicated, but it is just obfuscated module
     // operations. The grid of the game of life fold on itself. It is
     // geometrically a donut/torus.
@@ -261,13 +259,13 @@ void highlife_init(state *s, tw_lp *lp) {
   char filename[sz + 1]; // `+ 1` for terminating null byte
   snprintf(filename, sizeof(filename), fmt, self);
 
-  fp = fopen(filename, "w");
-  if (!fp) {
+  s->fp = fopen(filename, "w");
+  if (!s->fp) {
     perror("File opening failed\n");
     MPI_Abort(MPI_COMM_WORLD, -1);
   } else {
-    HL_printWorld(fp, s);
-    fprintf(fp, "\n");
+    HL_printWorld(s->fp, s);
+    fprintf(s->fp, "\n");
   }
 
   // Tick message to myself
@@ -345,12 +343,12 @@ void highlife_final(state *s, tw_lp *lp) {
   //           self, s->rcvd_count_H, s->rcvd_count_G);
   printf("%d handled %d STEP messages\n", self, s->steps);
 
-  if (!fp) {
+  if (!s->fp) {
     perror("File opening failed\n");
     MPI_Abort(MPI_COMM_WORLD, -1);
   } else {
-    fprintf(fp, "%d handled %d STEP messages\n\n", self, s->steps);
-    HL_printWorld(fp, s);
-    fclose(fp);
+    fprintf(s->fp, "%d handled %d STEP messages\n\n", self, s->steps);
+    HL_printWorld(s->fp, s);
+    fclose(s->fp);
   }
 }

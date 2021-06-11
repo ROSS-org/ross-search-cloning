@@ -41,6 +41,7 @@ typedef struct {
 typedef struct {
   int steps;
   unsigned char grid[W_WIDTH * W_HEIGHT];
+  FILE *fp;
 } state;
 
 // Command Line Argument declarations
