@@ -16,7 +16,7 @@ tw_lptype model_lps[] = {
      (pre_run_f) NULL,
      (event_f)   highlife_event,
      (revent_f)  highlife_event_reverse,
-     (commit_f)  NULL,
+     (commit_f)  highlife_event_commit,
      (final_f)   highlife_final,
      (map_f)     highlife_map,
      sizeof(state)},
@@ -38,9 +38,9 @@ const tw_optdef model_opts[] = {
 };
 
 // for doxygen
-#define model_main main
+#define highlife_main main
 
-int model_main(int argc, char *argv[]) {
+int highlife_main(int argc, char *argv[]) {
   tw_opt_add(model_opts);
   tw_init(&argc, &argv);
 

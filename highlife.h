@@ -34,13 +34,13 @@ typedef struct {
   tw_lpid sender;
   row_direction dir;
   unsigned char row[W_WIDTH];
-  unsigned char rev_state[W_WIDTH * W_HEIGHT]; // Storing the previous state to be recovered by the reverse message
+  unsigned char *rev_state; // Storing the previous state to be recovered by the reverse message
 } message;
 
 // State struct: this defines the state of each LP
 typedef struct {
   int steps;
-  unsigned char grid[W_WIDTH * W_HEIGHT];
+  unsigned char *grid;
   FILE *fp;
 } state;
 
@@ -58,6 +58,7 @@ extern unsigned int init_pattern;
 extern void highlife_init(state *s, tw_lp *lp);
 extern void highlife_event(state *s, tw_bf *bf, message *in_msg, tw_lp *lp);
 extern void highlife_event_reverse(state *s, tw_bf *bf, message *in_msg, tw_lp *lp);
+extern void highlife_event_commit(state *s, tw_bf *bf, message *in_msg, tw_lp *lp);
 extern void highlife_final(state *s, tw_lp *lp);
 // defined in highlife_map.c:
 extern tw_peid highlife_map(tw_lpid gid);

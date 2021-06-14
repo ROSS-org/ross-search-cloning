@@ -11,6 +11,8 @@
 #include "highlife.h"
 #include "ross.h"
 
+#define POINTER_SWAP(x, y) {void *tmp = x; x = y; y = tmp;}
+
 static inline void HL_initAllZeros(state *s) {
   for (size_t i = 0; i < W_WIDTH * W_HEIGHT; i++) {
       s->grid[i] = 0;
@@ -181,7 +183,7 @@ void HL_iterateSerial(unsigned char *grid, unsigned char *grid_msg) {
   }
 }
 
-void HL_swap(unsigned char *grid, unsigned char *grid_msg, size_t n_cells) {
+void array_swap(unsigned char *grid, unsigned char *grid_msg, size_t n_cells) {
   unsigned char tmp;
   for (size_t i = 0; i < n_cells; i++) {
     tmp = grid_msg[i];
@@ -238,6 +240,7 @@ void send_rows(state *s, tw_lp *lp) {
 // - called once for each LP
 void highlife_init(state *s, tw_lp *lp) {
   unsigned long self = lp->gid;
+  s->grid = malloc(W_WIDTH * W_HEIGHT * sizeof(unsigned char));
 
   switch (init_pattern) {
   case 0: HL_initAllZeros(s); break;
@@ -283,10 +286,11 @@ void highlife_event(state *s, tw_bf *bf, message *in_msg, tw_lp *lp) {
   // handle the message
   switch (in_msg->type) {
   case STEP:
+    in_msg->rev_state = malloc(W_WIDTH * W_HEIGHT * sizeof(unsigned char));
     // Next step in the simulation (is stored in second parameter)
     HL_iterateSerial(s->grid, in_msg->rev_state);
     // Exchanging parameters from one site to the other
-    HL_swap(s->grid, in_msg->rev_state, W_WIDTH * W_HEIGHT);
+    POINTER_SWAP(s->grid, in_msg->rev_state);
     s->steps++;
     // Sending tick for next STEP
     send_tick(lp);
@@ -297,10 +301,10 @@ void highlife_event(state *s, tw_bf *bf, message *in_msg, tw_lp *lp) {
   case ROW_UPDATE:
     switch (in_msg->dir) {
     case UP_ROW:
-      HL_swap(s->grid, in_msg->row, W_WIDTH);
+      array_swap(s->grid, in_msg->row, W_WIDTH);
       break;
     case DOWN_ROW:
-      HL_swap(s->grid + W_WIDTH*(W_HEIGHT-1), in_msg->row, W_WIDTH);
+      array_swap(s->grid + W_WIDTH*(W_HEIGHT-1), in_msg->row, W_WIDTH);
       /*HL_printWorld(stdout, s);*/
       break;
     }
@@ -320,18 +324,30 @@ void highlife_event_reverse(state *s, tw_bf *bf, message *in_msg, tw_lp *lp) {
   switch (in_msg->type) {
   case STEP:
     s->steps--;
-    HL_swap(s->grid, in_msg->rev_state, W_WIDTH * W_HEIGHT);
+    POINTER_SWAP(s->grid, in_msg->rev_state);
+    free(in_msg->rev_state);
     break;
   case ROW_UPDATE:
     switch (in_msg->dir) {
     case UP_ROW:
-      HL_swap(s->grid, in_msg->row, W_WIDTH);
+      array_swap(s->grid, in_msg->row, W_WIDTH);
       break;
     case DOWN_ROW:
-      HL_swap(s->grid + W_WIDTH*(W_HEIGHT-1), in_msg->row, W_WIDTH);
+      array_swap(s->grid + W_WIDTH*(W_HEIGHT-1), in_msg->row, W_WIDTH);
       break;
     }
     break;
+  }
+}
+
+void highlife_event_commit(state *s, tw_bf *bf, message *in_msg, tw_lp *lp) {
+  (void)bf;
+  (void)lp;
+  // int self = lp->gid;
+
+  // handle the message
+  if (in_msg->type == STEP) {
+    free(in_msg->rev_state);
   }
 }
 
@@ -351,4 +367,5 @@ void highlife_final(state *s, tw_lp *lp) {
     HL_printWorld(s->fp, s);
     fclose(s->fp);
   }
+  free(s->grid);
 }
