@@ -40,6 +40,7 @@ typedef struct {
 // State struct: this defines the state of each LP
 typedef struct {
   int steps;
+  int next_beat_sent;
   unsigned char *grid;
   FILE *fp;
 } state;

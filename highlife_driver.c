@@ -88,7 +88,7 @@ void HL_printWorld(FILE *stream, state *s) {
 
   fprintf(stream, "Print World - Iteration %d\n", s->steps);
 
-  fprintf(stream, "Ghost row: ");
+  fprintf(stream, "Ghost:  ");
   for (j = 0; j < W_WIDTH; j++) {
     fprintf(stream, "%u ", (unsigned int)s->grid[j]);
   }
@@ -102,7 +102,7 @@ void HL_printWorld(FILE *stream, state *s) {
     fprintf(stream, "\n");
   }
 
-  fprintf(stream, "Ghost row: ");
+  fprintf(stream, "Ghost:  ");
   for (j = 0; j < W_WIDTH; j++) {
     fprintf(stream, "%u ", (unsigned int)s->grid[(i * W_WIDTH) + j]);
   }
@@ -122,7 +122,9 @@ static inline unsigned int HL_countAliveCells(
 }
 
 /// Serial version of standard byte-per-cell life.
-void HL_iterateSerial(unsigned char *grid, unsigned char *grid_msg) {
+int HL_iterateSerial(unsigned char *grid, unsigned char *grid_msg) {
+  int changed = 0; // Tracking change in the grid
+
   // The code seems more intricate than what it actually is.
   // The second and third loops are in charge of computing a single
   // transition of the game of life.
@@ -179,17 +181,29 @@ void HL_iterateSerial(unsigned char *grid, unsigned char *grid_msg) {
       } else {  // if dead
         grid_msg[y1 + x1] = neighbours == 3 || neighbours == 6;
       }
+
+      if ((!changed) && (grid[y1 + x1] != grid_msg[y1 + x1])) {
+          changed = 1;
+      }
     }
   }
+
+  return changed;
 }
 
-void array_swap(unsigned char *grid, unsigned char *grid_msg, size_t n_cells) {
+int array_swap(unsigned char *grid, unsigned char *grid_msg, size_t n_cells) {
+  int change = 0;
   unsigned char tmp;
-  for (size_t i = 0; i < n_cells; i++) {
-    tmp = grid_msg[i];
-    grid_msg[i] = grid[i];
-    grid[i] = tmp;
+  for (size_t i = 0; i < n_cells; i++, grid_msg++, grid++) {
+    tmp = *grid_msg;
+    *grid_msg = *grid;
+    *grid = tmp;
+
+    if(!change && (*grid != *grid_msg)) {
+      change = 1;
+    }
   }
+  return change;
 }
 
 static inline void copy_row(unsigned char *into, unsigned char *from) {
@@ -198,9 +212,9 @@ static inline void copy_row(unsigned char *into, unsigned char *from) {
   }
 }
 
-void send_tick(tw_lp *lp) {
+void send_tick(tw_lp *lp, float dt) {
   int self = lp->gid;
-  tw_event *e = tw_event_new(self, 1, lp);
+  tw_event *e = tw_event_new(self, dt, lp);
   message *msg = tw_event_data(e);
   msg->type = STEP;
   msg->sender = self;
@@ -225,7 +239,7 @@ void send_rows(state *s, tw_lp *lp) {
   message *msg_drow = tw_event_data(e_drow);
   msg_drow->type = ROW_UPDATE;
   msg_drow->dir = DOWN_ROW; // Other LP's down row, not mine
-  copy_row(msg_drow->row, s->grid + (W_WIDTH));
+  copy_row(msg_drow->row, s->grid + W_WIDTH);
   tw_event_send(e_drow);
 
   tw_event *e_urow = tw_event_new(lp_id_down, 0.5, lp);
@@ -272,7 +286,8 @@ void highlife_init(state *s, tw_lp *lp) {
   }
 
   // Tick message to myself
-  send_tick(lp);
+  send_tick(lp, 1);
+  s->next_beat_sent = 1;
   // Sending rows to update
   send_rows(s, lp);
 }
@@ -280,35 +295,45 @@ void highlife_init(state *s, tw_lp *lp) {
 // Forward event handler
 void highlife_event(state *s, tw_bf *bf, message *in_msg, tw_lp *lp) {
   // initialize the bit field
-  (void)bf;
-  //*(int *)bf = (int)0;
+  bf->c0 = s->next_beat_sent;
 
   // handle the message
   switch (in_msg->type) {
   case STEP:
-    in_msg->rev_state = malloc(W_WIDTH * W_HEIGHT * sizeof(unsigned char));
+    in_msg->rev_state = calloc(W_WIDTH * W_HEIGHT, sizeof(unsigned char));
+
     // Next step in the simulation (is stored in second parameter)
-    HL_iterateSerial(s->grid, in_msg->rev_state);
+    int changed = HL_iterateSerial(s->grid, in_msg->rev_state);
     // Exchanging parameters from one site to the other
     POINTER_SWAP(s->grid, in_msg->rev_state);
+    s->next_beat_sent = 0;
+
     s->steps++;
-    // Sending tick for next STEP
-    send_tick(lp);
-    // Sending rows to update
-    send_rows(s, lp);
+    if (changed) {
+      // Sending tick for next STEP
+      send_tick(lp, 1);
+      // Sending rows to update
+      send_rows(s, lp);
+      s->next_beat_sent = 1;
+    }
     break;
 
-  case ROW_UPDATE:
+  case ROW_UPDATE: {
+    int change;
     switch (in_msg->dir) {
     case UP_ROW:
-      array_swap(s->grid, in_msg->row, W_WIDTH);
+      change = array_swap(s->grid, in_msg->row, W_WIDTH);
       break;
     case DOWN_ROW:
-      array_swap(s->grid + W_WIDTH*(W_HEIGHT-1), in_msg->row, W_WIDTH);
+      change = array_swap(s->grid + W_WIDTH*(W_HEIGHT-1), in_msg->row, W_WIDTH);
       /*HL_printWorld(stdout, s);*/
       break;
     }
-    break;
+    if (!s->next_beat_sent && change) {
+      send_tick(lp, 0.5);
+      s->next_beat_sent = 1;
+    }
+    break; }
   }
 
   // tw_output(lp, "Hello from %d\n", self);
@@ -316,7 +341,6 @@ void highlife_event(state *s, tw_bf *bf, message *in_msg, tw_lp *lp) {
 
 // Reverse Event Handler
 void highlife_event_reverse(state *s, tw_bf *bf, message *in_msg, tw_lp *lp) {
-  (void)bf;
   (void)lp;
   // int self = lp->gid;
 
@@ -338,6 +362,8 @@ void highlife_event_reverse(state *s, tw_bf *bf, message *in_msg, tw_lp *lp) {
     }
     break;
   }
+
+  s->next_beat_sent = bf->c0;
 }
 
 void highlife_event_commit(state *s, tw_bf *bf, message *in_msg, tw_lp *lp) {
