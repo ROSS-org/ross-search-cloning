@@ -24,15 +24,15 @@ tw_lpid model_typemap (tw_lpid gid) {
 */
 
 /*
-//Custom mapping functions are used so
+// Custom mapping functions are used so
 // - no LPs are unused
 // - event activity is balanced
 
 extern unsigned int nkp_per_pe;
-//#define VERIFY_MAPPING 1 //useful for debugging
+// #define VERIFY_MAPPING 1 // useful for debugging
 
-//This function maps LPs to KPs on PEs and is called at the start
-//This example is the same as Linear Mapping
+// This function maps LPs to KPs on PEs and is called at the start
+// This example is the same as Linear Mapping
 void model_custom_mapping(void){
   tw_pe *pe;
   int nlp_per_kp;
@@ -43,7 +43,7 @@ void model_custom_mapping(void){
   nlp_per_kp = ceil((double) g_tw_nlp / (double) g_tw_nkp);
   if (!nlp_per_kp) tw_error(TW_LOC, "Not enough KPs defined: %d", g_tw_nkp);
 
-  //gid of first LP on this PE (aka node)
+  // gid of first LP on this PE (aka node)
   g_tw_lp_offset = g_tw_mynode * g_tw_nlp;
 
 #if VERIFY_MAPPING
@@ -74,7 +74,7 @@ g_tw_lp_offset);
     }
   }
 
-  //Error checks for the mapping
+  // Error checks for the mapping
   if (!g_tw_lp[g_tw_nlp - 1]) {
     tw_error(TW_LOC, "Not all LPs defined! (g_tw_nlp=%d)", g_tw_nlp);
   }
@@ -84,7 +84,7 @@ g_tw_lp_offset);
   }
 }
 
-//Given a gid, return the local LP (global id => local id mapping)
+// Given a gid, return the local LP (global id => local id mapping)
 tw_lp * model_mapping_to_lp(tw_lpid){
   int local_id = lp_id - g_tw_offset;
   return g_tw_lp[id];

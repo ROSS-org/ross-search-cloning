@@ -1,9 +1,10 @@
-// The C driver file for a ROSS model
+// The C driver file for the HighLife model
 // This file includes:
-// - an initialization function for each LP type
-// - a forward event function for each LP type
-// - a reverse event function for each LP type
-// - a finalization function for each LP type
+// - An initialization function
+// - A forward event function and associated helper functions
+// - A reverse event function
+// - A commit event function
+// - A finalization function
 
 // Includes
 #include <stdio.h>
@@ -11,7 +12,41 @@
 #include "highlife.h"
 #include "ross.h"
 
+// ================================ Helper definitions ===============================
+
 #define POINTER_SWAP(x, y) {void *tmp = x; x = y; y = tmp;}
+
+// ================================= Helper functions ================================
+
+int array_swap(unsigned char *grid, unsigned char *grid_msg, size_t n_cells) {
+  int change = 0;
+  unsigned char tmp;
+  for (size_t i = 0; i < n_cells; i++, grid_msg++, grid++) {
+    tmp = *grid_msg;
+    *grid_msg = *grid;
+    *grid = tmp;
+
+    if(!change && (*grid != *grid_msg)) {
+      change = 1;
+    }
+  }
+  return change;
+}
+
+static inline void copy_row(unsigned char *into, unsigned char *from) {
+  for (int i = 0; i < W_WIDTH; i++) {
+    into[i] = from[i];
+  }
+}
+
+void print_row(unsigned char *row) {
+  for (size_t i = 0; i < W_WIDTH; i++) {
+    printf("%d ", row[i]);
+  }
+  printf("\n");
+}
+
+// ------------------------- Helper initialization functions -------------------------
 
 static inline void HL_initAllZeros(state *s) {
   for (size_t i = 0; i < W_WIDTH * W_HEIGHT; i++) {
@@ -109,6 +144,9 @@ void HL_printWorld(FILE *stream, state *s) {
   fprintf(stream, "\n");
 }
 
+// -------------------------- Helper HighLife step functions -------------------------
+
+/** Determines the number of alive cells around a given point in space */
 static inline unsigned int HL_countAliveCells(
         unsigned char *data, size_t x0, size_t x1, size_t x2, size_t y0, size_t y1, size_t y2) {
   // y1+x1 represents the position in the one dimensional array where
@@ -117,11 +155,12 @@ static inline unsigned int HL_countAliveCells(
   // y1+x0 is the position to the left of (y, x)
   // y0+x1 is the position on top of (y, x)
   // y2+x2 is the position diagonally bottom, right to (y, x)
-  return data[y0 + x0] + data[y0 + x1] + data[y0 + x2] + data[y1 + x0] + data[y1 + x2] + data[y2 + x0] +
-         data[y2 + x1] + data[y2 + x2];
+  return data[y0 + x0] + data[y0 + x1] + data[y0 + x2]
+       + data[y1 + x0]                 + data[y1 + x2]
+       + data[y2 + x0] + data[y2 + x1] + data[y2 + x2];
 }
 
-/// Serial version of standard byte-per-cell life.
+/** Serial version of standard byte-per-cell life */
 int HL_iterateSerial(unsigned char *grid, unsigned char *grid_msg) {
   int changed = 0; // Tracking change in the grid
 
@@ -191,27 +230,7 @@ int HL_iterateSerial(unsigned char *grid, unsigned char *grid_msg) {
   return changed;
 }
 
-int array_swap(unsigned char *grid, unsigned char *grid_msg, size_t n_cells) {
-  int change = 0;
-  unsigned char tmp;
-  for (size_t i = 0; i < n_cells; i++, grid_msg++, grid++) {
-    tmp = *grid_msg;
-    *grid_msg = *grid;
-    *grid = tmp;
-
-    if(!change && (*grid != *grid_msg)) {
-      change = 1;
-    }
-  }
-  return change;
-}
-
-static inline void copy_row(unsigned char *into, unsigned char *from) {
-  for (int i = 0; i < W_WIDTH; i++) {
-    into[i] = from[i];
-  }
-}
-
+/** Sends a heartbeat */
 void send_tick(tw_lp *lp, float dt) {
   int self = lp->gid;
   tw_event *e = tw_event_new(self, dt, lp);
@@ -221,13 +240,7 @@ void send_tick(tw_lp *lp, float dt) {
   tw_event_send(e);
 }
 
-void print_row(unsigned char *row) {
-  for (size_t i = 0; i < W_WIDTH; i++) {
-    printf("%d ", row[i]);
-  }
-  printf("\n");
-}
-
+/** Sends a (new) rows to neighboring grids/LPs/mini-worlds */
 void send_rows(state *s, tw_lp *lp) {
   int self = lp->gid;
 
@@ -250,8 +263,11 @@ void send_rows(state *s, tw_lp *lp) {
   tw_event_send(e_urow);
 }
 
-// Init function
-// - called once for each LP
+
+// ========================== Helper HighLife step functions =========================
+// These functions are called directly by ROSS
+
+/** LP initialization. Called once for each LP */
 void highlife_init(state *s, tw_lp *lp) {
   unsigned long self = lp->gid;
   s->grid = malloc(W_WIDTH * W_HEIGHT * sizeof(unsigned char));
@@ -276,6 +292,7 @@ void highlife_init(state *s, tw_lp *lp) {
   char filename[sz + 1]; // `+ 1` for terminating null byte
   snprintf(filename, sizeof(filename), fmt, self);
 
+  // Creating file handler and printing initial state of the grid
   s->fp = fopen(filename, "w");
   if (!s->fp) {
     perror("File opening failed\n");
@@ -318,8 +335,10 @@ void highlife_event(state *s, tw_bf *bf, message *in_msg, tw_lp *lp) {
     }
     break;
 
-  case ROW_UPDATE: {
-    int change;
+  case ROW_UPDATE:
+    {
+    int change;  //< To store whether the update took place or there was no change between
+                 // the two rows
     switch (in_msg->dir) {
     case UP_ROW:
       change = array_swap(s->grid, in_msg->row, W_WIDTH);
@@ -330,16 +349,21 @@ void highlife_event(state *s, tw_bf *bf, message *in_msg, tw_lp *lp) {
       break;
     }
     if (!s->next_beat_sent && change) {
+      // In case the heartbeat hasn't been sent yet and this message modified the state of
+      // the grid, then sent a heartbeat to self
       send_tick(lp, 0.5);
       s->next_beat_sent = 1;
     }
-    break; }
+    break;
+    }
   }
 
   // tw_output(lp, "Hello from %d\n", self);
 }
 
 // Reverse Event Handler
+// Notice that all operations are reversed using the data stored in either the reverse
+// message or the bit field
 void highlife_event_reverse(state *s, tw_bf *bf, message *in_msg, tw_lp *lp) {
   (void)lp;
   // int self = lp->gid;
@@ -349,7 +373,7 @@ void highlife_event_reverse(state *s, tw_bf *bf, message *in_msg, tw_lp *lp) {
   case STEP:
     s->steps--;
     POINTER_SWAP(s->grid, in_msg->rev_state);
-    free(in_msg->rev_state);
+    free(in_msg->rev_state);  // Freeing memory allocated by forward handler
     break;
   case ROW_UPDATE:
     switch (in_msg->dir) {
@@ -366,6 +390,9 @@ void highlife_event_reverse(state *s, tw_bf *bf, message *in_msg, tw_lp *lp) {
   s->next_beat_sent = bf->c0;
 }
 
+// Commit event handler
+// This function is only called when it can be make sure that the message won't be
+// roll back. Either the commit or reverse handler will be called, not both
 void highlife_event_commit(state *s, tw_bf *bf, message *in_msg, tw_lp *lp) {
   (void)bf;
   (void)lp;
@@ -373,23 +400,26 @@ void highlife_event_commit(state *s, tw_bf *bf, message *in_msg, tw_lp *lp) {
 
   // handle the message
   if (in_msg->type == STEP) {
-    free(in_msg->rev_state);
+    free(in_msg->rev_state);  // Freeing memory allocated by forward handler
   }
 }
 
-// report any final statistics for this LP
+// The finalization function
+// Reporting any final statistics for this LP in the file previously opened
 void highlife_final(state *s, tw_lp *lp) {
   int self = lp->gid;
   // Does not work! Once the model is closed, no output is processed
   // tw_output(lp, "%d handled %d Hello and %d Goodbye messages\n",
   //           self, s->rcvd_count_H, s->rcvd_count_G);
-  printf("%d handled %d STEP messages\n", self, s->steps);
+  printf("LP %d handled %d STEP messages\n", self, s->steps);
+  printf("LP %d: The current (local) time is %f\n\n", self, tw_now(lp));
 
   if (!s->fp) {
     perror("File opening failed\n");
     MPI_Abort(MPI_COMM_WORLD, -1);
   } else {
-    fprintf(s->fp, "%d handled %d STEP messages\n\n", self, s->steps);
+    fprintf(s->fp, "%d handled %d STEP messages\n", self, s->steps);
+    fprintf(s->fp, "The current (local) time is %f\n\n", tw_now(lp));
     HL_printWorld(s->fp, s);
     fclose(s->fp);
   }

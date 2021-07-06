@@ -1,16 +1,16 @@
-// The C main file for a ROSS model
+// The C main file for the HighLife model
 // This file includes:
-// - definition of the LP types
-// - command line argument setup
-// - a main function
+// - Definition of the LP types
+// - Command line argument setup
+// - A main function
 
 // includes
 #include "highlife.h"
 #include "ross.h"
 
-// Define LP types
-//   these are the functions called by ROSS for each LP
-//   multiple sets can be defined (for multiple LP types)
+// Defining LP types
+//  - These are the functions called by ROSS for each LP
+//  - Multiple sets can be defined (for multiple LP types)
 tw_lptype model_lps[] = {
     {(init_f)    highlife_init,
      (pre_run_f) NULL,
@@ -25,15 +25,11 @@ tw_lptype model_lps[] = {
 
 // Define command line arguments default values
 unsigned int init_pattern = 0;
-/*unsigned int world_width = 20;*/
-/*unsigned int world_height = 20;*/
 
 // add your command line opts
 const tw_optdef model_opts[] = {
     TWOPT_GROUP("HighLife"),
     TWOPT_UINT("pattern", init_pattern, "initial pattern for HighLife world"),
-    /*TWOPT_UINT("width", world_width, "world width for LP"),*/
-    /*TWOPT_UINT("height", world_height, "world height for LP"),*/
     TWOPT_END(),
 };
 
