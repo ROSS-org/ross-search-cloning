@@ -6,7 +6,8 @@
 //   - setup function to place LPs and KPs on PEs
 //   - local map function to find LP in local PE's array
 
-#include "highlife.h"
+#include <ross.h>
+#include <highlife_config.h>
 
 // Given an LP's GID (global ID)
 // return the PE (aka node, MPI Rank)

@@ -1,15 +1,7 @@
-// Header file template for HighLife model
-//
-// This file includes:
-// - The state and message structs
-// - Extern'ed command line arguments
-// - Custom mapping function prototypes (if needed)
-// - Any other needed structs, enums, unions, or #defines
+#ifndef HIGHLIFE_STATE_H
+#define HIGHLIFE_STATE_H
 
-#ifndef _highlife_h
-#define _highlife_h
-
-#include "ross.h"
+#include <ross.h>
 
 // The world for a HighLife simulation is composed of stacked mini-worlds, one per LP.
 // The size of each mini-world is `W_WIDTH x W_HEIGHT`
@@ -59,40 +51,4 @@ typedef struct {
                                // message handler
 } message;
 
-// ======================== Command Line Argument declarations =======================
-extern unsigned int init_pattern;
-
-// ================================ Global variables =================================
-// This defines the LP types
-//extern tw_lptype model_lps[];
-
-// ============================== Function Declarations ==============================
-// defined in highlife_driver.c:
-
-/** Grid initialization and first heartbeat */
-extern void highlife_init(state *s, tw_lp *lp);
-
-/** Forward event handler */
-extern void highlife_event(state *s, tw_bf *bf, message *in_msg, tw_lp *lp);
-
-/** Reverse event handler */
-extern void highlife_event_reverse(state *s, tw_bf *bf, message *in_msg, tw_lp *lp);
-
-/** Commit event handler */
-extern void highlife_event_commit(state *s, tw_bf *bf, message *in_msg, tw_lp *lp);
-
-/** Cleaning and printing info before shut down */
-extern void highlife_final(state *s, tw_lp *lp);
-
-// defined in highlife_map.c:
-/** Mapping of LPs to SEs */
-extern tw_peid highlife_map(tw_lpid gid);
-
-// ============================ Custom mapping prototypes ============================
-/*
-void model_cutom_mapping(void);
-tw_lp * model_mapping_to_lp(tw_lpid lpid);
-tw_peid model_map(tw_lpid gid);
-*/
-
-#endif  // _highlife_h
+#endif /* end of include guard */

@@ -7,10 +7,18 @@
 // - A finalization function
 
 // Includes
+#include "driver.h"
+#include <stdbool.h>
+#include <ross.h>
 #include <stdio.h>
 
-#include "highlife.h"
-#include "ross.h"
+// ================================= Global variables ================================
+
+static int init_pattern = 0;
+
+void driver_config(int init_pattern_var) {
+    init_pattern = init_pattern_var;
+}
 
 // ================================ Helper definitions ===============================
 
@@ -18,7 +26,7 @@
 
 // ================================= Helper functions ================================
 
-int array_swap(unsigned char *grid, unsigned char *grid_msg, size_t n_cells) {
+static int array_swap(unsigned char *grid, unsigned char *grid_msg, size_t n_cells) {
   int change = 0;
   unsigned char tmp;
   for (size_t i = 0; i < n_cells; i++, grid_msg++, grid++) {
@@ -39,7 +47,7 @@ static inline void copy_row(unsigned char *into, unsigned char *from) {
   }
 }
 
-void print_row(unsigned char *row) {
+static void print_row(unsigned char *row) {
   for (size_t i = 0; i < W_WIDTH; i++) {
     printf("%d ", row[i]);
   }
@@ -118,7 +126,7 @@ static inline void HL_initDiagonal(state *s) {
   }
 }
 
-void HL_printWorld(FILE *stream, state *s) {
+static void HL_printWorld(FILE *stream, state *s) {
   size_t i, j;
 
   fprintf(stream, "Print World - Iteration %d\n", s->steps);
@@ -161,7 +169,7 @@ static inline unsigned int HL_countAliveCells(
 }
 
 /** Serial version of standard byte-per-cell life */
-int HL_iterateSerial(unsigned char *grid, unsigned char *grid_msg) {
+static int HL_iterateSerial(unsigned char *grid, unsigned char *grid_msg) {
   int changed = 0; // Tracking change in the grid
 
   // The code seems more intricate than what it actually is.
@@ -231,7 +239,7 @@ int HL_iterateSerial(unsigned char *grid, unsigned char *grid_msg) {
 }
 
 /** Sends a heartbeat */
-void send_tick(tw_lp *lp, float dt) {
+static void send_tick(tw_lp *lp, float dt) {
   int self = lp->gid;
   tw_event *e = tw_event_new(self, dt, lp);
   message *msg = tw_event_data(e);
@@ -241,7 +249,7 @@ void send_tick(tw_lp *lp, float dt) {
 }
 
 /** Sends a (new) rows to neighboring grids/LPs/mini-worlds */
-void send_rows(state *s, tw_lp *lp) {
+static void send_rows(state *s, tw_lp *lp) {
   int self = lp->gid;
 
   // Sending rows to update
@@ -269,7 +277,7 @@ void send_rows(state *s, tw_lp *lp) {
 
 /** LP initialization. Called once for each LP */
 void highlife_init(state *s, tw_lp *lp) {
-  unsigned long self = lp->gid;
+  uint64_t self = lp->gid;
   s->grid = malloc(W_WIDTH * W_HEIGHT * sizeof(unsigned char));
 
   switch (init_pattern) {
@@ -287,7 +295,7 @@ void highlife_init(state *s, tw_lp *lp) {
   }
 
   // Finding name for file
-  const char *fmt = "output/highlife-gid=%d.txt";
+  char const fmt[] = "output/highlife-gid=%lu.txt";
   int sz = snprintf(NULL, 0, fmt, self);
   char filename[sz + 1]; // `+ 1` for terminating null byte
   snprintf(filename, sizeof(filename), fmt, self);
@@ -394,6 +402,7 @@ void highlife_event_reverse(state *s, tw_bf *bf, message *in_msg, tw_lp *lp) {
 // This function is only called when it can be make sure that the message won't be
 // roll back. Either the commit or reverse handler will be called, not both
 void highlife_event_commit(state *s, tw_bf *bf, message *in_msg, tw_lp *lp) {
+  (void)s;
   (void)bf;
   (void)lp;
   // int self = lp->gid;

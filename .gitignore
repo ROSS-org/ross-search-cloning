@@ -1,1 +1,8 @@
+# Folder containing stuff not to be tracked (additional data)
+non-tracked/
+
+# Clang files (used by clang-check)
 compile_commands.json
+
+# Neomake (Nvim pluggin) files
+*@neomake_*

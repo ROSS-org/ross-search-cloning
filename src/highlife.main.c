@@ -5,8 +5,10 @@
 // - A main function
 
 // includes
-#include "highlife.h"
-#include "ross.h"
+#include "driver.h"
+#include "mapping.h"
+#include "utils.h"
+
 
 // Defining LP types
 //  - These are the functions called by ROSS for each LP
@@ -24,7 +26,7 @@ tw_lptype model_lps[] = {
 };
 
 // Define command line arguments default values
-unsigned int init_pattern = 0;
+static int init_pattern = 0;
 
 // add your command line opts
 const tw_optdef model_opts[] = {
@@ -33,14 +35,14 @@ const tw_optdef model_opts[] = {
     TWOPT_END(),
 };
 
-// for doxygen
-#define highlife_main main
 
-int highlife_main(int argc, char *argv[]) {
+int main(int argc, char *argv[]) {
   tw_opt_add(model_opts);
   tw_init(&argc, &argv);
 
   // Do some error checking?
+  check_folder("output");
+  driver_config(init_pattern);
   // Print out some settings?
 
   // Custom Mapping
