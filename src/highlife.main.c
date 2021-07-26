@@ -48,7 +48,9 @@ int main(int argc, char *argv[]) {
   // Setting the driver configuration should be done before running anything
   driver_config(init_pattern);
   // Print out some settings?
-  printf("Highlife git version: " MODEL_VERSION);
+  if (g_tw_mynode == 0) {
+    printf("Highlife git version: " MODEL_VERSION);
+  }
 
   // Custom Mapping
   /*
@@ -70,7 +72,7 @@ int main(int argc, char *argv[]) {
   // g_tw_total_lps
 
   // assume 1 lp in this node
-  int num_lps_in_pe = 1;
+  int const num_lps_in_pe = 1;
 
   // set up LPs within ROSS
   tw_define_lps(num_lps_in_pe, sizeof(message));

@@ -23,6 +23,7 @@ tw_lpid model_typemap (tw_lpid gid) {
 }
 */
 
+
 /*
 // Custom mapping functions are used so
 // - no LPs are unused
@@ -83,6 +84,7 @@ g_tw_lp_offset);
     tw_error(TW_LOC, "LPs not sequentially enumerated");
   }
 }
+
 
 // Given a gid, return the local LP (global id => local id mapping)
 tw_lp * model_mapping_to_lp(tw_lpid){
