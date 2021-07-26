@@ -3,7 +3,7 @@
 
 #include "state.h"
 
-/** Setting the configuration. Returns `true` if it finds any problem */
+/** Setting global variables to be used within the driver */
 void driver_config(int init_pattern);
 
 /** Grid initialization and first heartbeat */

@@ -7,7 +7,6 @@
 //   - local map function to find LP in local PE's array
 
 #include <ross.h>
-#include <highlife_config.h>
 
 // Given an LP's GID (global ID)
 // return the PE (aka node, MPI Rank)

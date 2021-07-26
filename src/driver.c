@@ -47,13 +47,6 @@ static inline void copy_row(unsigned char *into, unsigned char *from) {
   }
 }
 
-static void print_row(unsigned char *row) {
-  for (size_t i = 0; i < W_WIDTH; i++) {
-    printf("%d ", row[i]);
-  }
-  printf("\n");
-}
-
 // ------------------------- Helper initialization functions -------------------------
 
 static inline void HL_initAllZeros(state *s) {

@@ -1,5 +1,6 @@
-# Folder containing stuff not to be tracked (additional data)
+# Folders containing stuff not to be tracked (additional data and binaries)
 non-tracked/
+build/
 
 # Clang files (used by clang-check)
 compile_commands.json

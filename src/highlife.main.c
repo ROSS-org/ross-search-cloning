@@ -8,6 +8,7 @@
 #include "driver.h"
 #include "mapping.h"
 #include "utils.h"
+#include <highlife_config.h>
 
 
 // Defining LP types
@@ -41,9 +42,13 @@ int main(int argc, char *argv[]) {
   tw_init(&argc, &argv);
 
   // Do some error checking?
-  check_folder("output");
+  if (g_tw_mynode == 0) {
+    check_folder("output");
+  }
+  // Setting the driver configuration should be done before running anything
   driver_config(init_pattern);
   // Print out some settings?
+  printf("Highlife git version: " MODEL_VERSION);
 
   // Custom Mapping
   /*
