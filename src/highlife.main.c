@@ -1,19 +1,13 @@
-// The C main file for the HighLife model
-// This file includes:
-// - Definition of the LP types
-// - Command line argument setup
-// - A main function
-
-// includes
 #include "driver.h"
 #include "mapping.h"
 #include "utils.h"
 #include <highlife_config.h>
 
 
-// Defining LP types
-//  - These are the functions called by ROSS for each LP
-//  - Multiple sets can be defined (for multiple LP types)
+/** Defining LP types.
+ * - These are the functions called by ROSS for each LP
+ * - Multiple sets can be defined (for multiple LP types)
+ */
 tw_lptype model_lps[] = {
     {(init_f)    highlife_init,
      (pre_run_f) NULL,
@@ -26,11 +20,11 @@ tw_lptype model_lps[] = {
     {0},
 };
 
-// Define command line arguments default values
+/** Define command line arguments default values. */
 static int init_pattern = 0;
 
-// add your command line opts
-const tw_optdef model_opts[] = {
+/** Custom to Highlife command line options. */
+static tw_optdef const model_opts[] = {
     TWOPT_GROUP("HighLife"),
     TWOPT_UINT("pattern", init_pattern, "initial pattern for HighLife world"),
     TWOPT_END(),

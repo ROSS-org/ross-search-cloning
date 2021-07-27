@@ -39,6 +39,19 @@ Given the nature of interlocked execution for highlife, the best option is `--sy
 be processed much faster than they are transmited between LPs (so, rollback eats a
 considerable amount of time at execution time in the optimistic mode).
 
+# Documentation
+
+To generate documentation, install [doxygen][] and dot (included in [graphviz][]), and then run:
+
+```bash
+doxygen docs/Doxyfile
+```
+
+The documentation will be stored in `docs/html`.
+
+[doxygen]: https://www.doxygen.nl/
+[graphviz]: https://www.graphviz.org/
+
 # Exercises for the reader
 
 This HighLife model is meant mostly as an educational tool for the dear reader/developer

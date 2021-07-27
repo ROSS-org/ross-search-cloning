@@ -1,12 +1,3 @@
-// The C driver file for the HighLife model
-// This file includes:
-// - An initialization function
-// - A forward event function and associated helper functions
-// - A reverse event function
-// - A commit event function
-// - A finalization function
-
-// Includes
 #include "driver.h"
 #include <stdbool.h>
 #include <ross.h>
@@ -283,7 +274,7 @@ static void send_rows(state *s, tw_lp *lp) {
 // ========================== Helper HighLife step functions =========================
 // These functions are called directly by ROSS
 
-/** LP initialization. Called once for each LP */
+// LP initialization. Called once for each LP
 void highlife_init(state *s, tw_lp *lp) {
   uint64_t const self = lp->gid;
   s->grid = malloc(W_WIDTH * W_HEIGHT * sizeof(unsigned char));
