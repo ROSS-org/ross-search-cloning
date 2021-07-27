@@ -12,9 +12,9 @@ discrete event simulator, based on the [template model][template-model].
 The following are the instructions to download and compile:
 
 ```bash
-git clone --recursive https://github.com/helq/ross-highlife
-mkdir ross-highlife/build
-cd ross-highlife/build
+git clone --recursive https://github.com/helq/highlife-ross
+mkdir highlife-ross/build
+cd highlife-ross/build
 cmake .. -DCMAKE_INSTALL_PREFIX="$(pwd -P)/"
 make install
 ```
