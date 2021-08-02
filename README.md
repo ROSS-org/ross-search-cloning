@@ -41,7 +41,8 @@ considerable amount of time at execution time in the optimistic mode).
 
 # Documentation
 
-To generate documentation, install [doxygen][] and dot (included in [graphviz][]), and then run:
+To generate the documentation, install [doxygen][] and dot (included in [graphviz][]), and
+then run:
 
 ```bash
 doxygen docs/Doxyfile

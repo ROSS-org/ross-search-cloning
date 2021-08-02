@@ -16,7 +16,7 @@ tw_lptype model_lps[] = {
      (commit_f)  highlife_event_commit,
      (final_f)   highlife_final,
      (map_f)     highlife_map,
-     sizeof(state)},
+     sizeof(struct HighlifeState)},
     {0},
 };
 
@@ -43,7 +43,7 @@ int main(int argc, char *argv[]) {
   driver_config(init_pattern);
   // Print out some settings?
   if (g_tw_mynode == 0) {
-    printf("Highlife git version: " MODEL_VERSION);
+    printf("Highlife git version: " MODEL_VERSION "\n");
   }
 
   // Custom Mapping
@@ -69,7 +69,7 @@ int main(int argc, char *argv[]) {
   int const num_lps_in_pe = 1;
 
   // set up LPs within ROSS
-  tw_define_lps(num_lps_in_pe, sizeof(message));
+  tw_define_lps(num_lps_in_pe, sizeof(struct Message));
   // note that g_tw_nlp gets set here by tw_define_lps
 
   // IF there are multiple LP types

@@ -44,14 +44,14 @@ static inline void copy_row(unsigned char * const into, unsigned char const * co
 
 // ------------------------- Helper initialization functions -------------------------
 
-static inline void HL_initAllZeros(state *s) {
+static inline void HL_initAllZeros(struct HighlifeState *s) {
   for (size_t i = 0; i < W_WIDTH * W_HEIGHT; i++) {
       s->grid[i] = 0;
   }
 }
 
 
-static inline void HL_initAllOnes(state *s) {
+static inline void HL_initAllOnes(struct HighlifeState *s) {
   HL_initAllZeros(s);
   for (size_t i = W_WIDTH; i < W_WIDTH * (W_HEIGHT - 1); i++) {
       s->grid[i] = 1;
@@ -59,7 +59,7 @@ static inline void HL_initAllOnes(state *s) {
 }
 
 
-static inline void HL_initOnesInMiddle(state *s) {
+static inline void HL_initOnesInMiddle(struct HighlifeState *s) {
   HL_initAllZeros(s);
   // Iterating over row 10
   for (size_t i = 10 * W_WIDTH; i < 11 * W_WIDTH; i++) {
@@ -70,7 +70,7 @@ static inline void HL_initOnesInMiddle(state *s) {
 }
 
 
-static inline void HL_initOnesAtCorners(state *s, unsigned long self) {
+static inline void HL_initOnesAtCorners(struct HighlifeState *s, unsigned long self) {
   HL_initAllZeros(s);
 
   if (self == 0) {
@@ -83,7 +83,7 @@ static inline void HL_initOnesAtCorners(state *s, unsigned long self) {
 }
 
 
-static inline void HL_initSpinnerAtCorner(state *s, unsigned long self) {
+static inline void HL_initSpinnerAtCorner(struct HighlifeState *s, unsigned long self) {
   HL_initAllZeros(s);
 
   if (self == 0) {
@@ -94,7 +94,7 @@ static inline void HL_initSpinnerAtCorner(state *s, unsigned long self) {
 }
 
 
-static inline void HL_initReplicator(state *s, unsigned long self) {
+static inline void HL_initReplicator(struct HighlifeState *s, unsigned long self) {
   HL_initAllZeros(s);
 
   if (self == 0) {
@@ -112,7 +112,7 @@ static inline void HL_initReplicator(state *s, unsigned long self) {
 }
 
 
-static inline void HL_initDiagonal(state *s) {
+static inline void HL_initDiagonal(struct HighlifeState *s) {
   HL_initAllZeros(s);
 
   for (int i = 0; i < W_WIDTH && i < W_HEIGHT; i++) {
@@ -121,7 +121,7 @@ static inline void HL_initDiagonal(state *s) {
 }
 
 
-static void HL_printWorld(FILE *stream, state *s) {
+static void HL_printWorld(FILE *stream, struct HighlifeState *s) {
   size_t i, j;
 
   fprintf(stream, "Print World - Iteration %d\n", s->steps);
@@ -238,34 +238,34 @@ static int HL_iterateSerial(unsigned char *grid, unsigned char *grid_msg) {
 
 /** Sends a heartbeat */
 static void send_tick(tw_lp *lp, float dt) {
-  int self = lp->gid;
+  uint64_t const self = lp->gid;
   tw_event *e = tw_event_new(self, dt, lp);
-  message *msg = tw_event_data(e);
-  msg->type = STEP;
+  struct Message *msg = tw_event_data(e);
+  msg->type = MESSAGE_TYPE_step;
   msg->sender = self;
   tw_event_send(e);
 }
 
 
 /** Sends a (new) rows to neighboring grids/LPs/mini-worlds */
-static void send_rows(state *s, tw_lp *lp) {
-  int self = lp->gid;
+static void send_rows(struct HighlifeState *s, tw_lp *lp) {
+  uint64_t const self = lp->gid;
 
   // Sending rows to update
   int lp_id_up = (self + g_tw_total_lps - 1) % g_tw_total_lps;
   int lp_id_down = (self+1) % g_tw_total_lps;
 
   tw_event *e_drow = tw_event_new(lp_id_up, 0.5, lp);
-  message *msg_drow = tw_event_data(e_drow);
-  msg_drow->type = ROW_UPDATE;
-  msg_drow->dir = DOWN_ROW; // Other LP's down row, not mine
+  struct Message *msg_drow = tw_event_data(e_drow);
+  msg_drow->type = MESSAGE_TYPE_row_update;
+  msg_drow->dir = ROW_DIRECTION_down_row; // Other LP's down row, not mine
   copy_row(msg_drow->row, s->grid + W_WIDTH);
   tw_event_send(e_drow);
 
   tw_event *e_urow = tw_event_new(lp_id_down, 0.5, lp);
-  message *msg_urow = tw_event_data(e_urow);
-  msg_urow->type = ROW_UPDATE;
-  msg_urow->dir = UP_ROW;
+  struct Message *msg_urow = tw_event_data(e_urow);
+  msg_urow->type = MESSAGE_TYPE_row_update;
+  msg_urow->dir = ROW_DIRECTION_up_row;
   copy_row(msg_urow->row, s->grid + (W_WIDTH * (W_HEIGHT - 2)));
   tw_event_send(e_urow);
 }
@@ -275,7 +275,7 @@ static void send_rows(state *s, tw_lp *lp) {
 // These functions are called directly by ROSS
 
 // LP initialization. Called once for each LP
-void highlife_init(state *s, tw_lp *lp) {
+void highlife_init(struct HighlifeState *s, tw_lp *lp) {
   uint64_t const self = lp->gid;
   s->grid = malloc(W_WIDTH * W_HEIGHT * sizeof(unsigned char));
 
@@ -318,13 +318,13 @@ void highlife_init(state *s, tw_lp *lp) {
 
 
 // Forward event handler
-void highlife_event(state *s, tw_bf *bf, message *in_msg, tw_lp *lp) {
+void highlife_event(struct HighlifeState *s, tw_bf *bf, struct Message *in_msg, tw_lp *lp) {
   // initialize the bit field
   bf->c0 = s->next_beat_sent;
 
   // handle the message
   switch (in_msg->type) {
-  case STEP:
+  case MESSAGE_TYPE_step:
     in_msg->rev_state = calloc(W_WIDTH * W_HEIGHT, sizeof(unsigned char));
 
     // Next step in the simulation (is stored in second parameter)
@@ -343,15 +343,15 @@ void highlife_event(state *s, tw_bf *bf, message *in_msg, tw_lp *lp) {
     }
     break;
 
-  case ROW_UPDATE:
+  case MESSAGE_TYPE_row_update:
     {
     bool change;  //< To store whether the update took place or there was no change between
                   // the two rows
     switch (in_msg->dir) {
-    case UP_ROW:
+    case ROW_DIRECTION_up_row:
       change = array_swap(s->grid, in_msg->row, W_WIDTH);
       break;
-    case DOWN_ROW:
+    case ROW_DIRECTION_down_row:
       change = array_swap(s->grid + W_WIDTH*(W_HEIGHT-1), in_msg->row, W_WIDTH);
       /*HL_printWorld(stdout, s);*/
       break;
@@ -371,22 +371,22 @@ void highlife_event(state *s, tw_bf *bf, message *in_msg, tw_lp *lp) {
 // Reverse Event Handler
 // Notice that all operations are reversed using the data stored in either the reverse
 // message or the bit field
-void highlife_event_reverse(state *s, tw_bf *bf, message *in_msg, tw_lp *lp) {
+void highlife_event_reverse(struct HighlifeState *s, tw_bf *bf, struct Message *in_msg, tw_lp *lp) {
   (void)lp;
 
   // handle the message
   switch (in_msg->type) {
-  case STEP:
+  case MESSAGE_TYPE_step:
     s->steps--;
     POINTER_SWAP(s->grid, in_msg->rev_state);
     free(in_msg->rev_state);  // Freeing memory allocated by forward handler
     break;
-  case ROW_UPDATE:
+  case MESSAGE_TYPE_row_update:
     switch (in_msg->dir) {
-    case UP_ROW:
+    case ROW_DIRECTION_up_row:
       array_swap(s->grid, in_msg->row, W_WIDTH);
       break;
-    case DOWN_ROW:
+    case ROW_DIRECTION_down_row:
       array_swap(s->grid + W_WIDTH*(W_HEIGHT-1), in_msg->row, W_WIDTH);
       break;
     }
@@ -400,13 +400,13 @@ void highlife_event_reverse(state *s, tw_bf *bf, message *in_msg, tw_lp *lp) {
 // Commit event handler
 // This function is only called when it can be make sure that the message won't be
 // roll back. Either the commit or reverse handler will be called, not both
-void highlife_event_commit(state *s, tw_bf *bf, message *in_msg, tw_lp *lp) {
+void highlife_event_commit(struct HighlifeState *s, tw_bf *bf, struct Message *in_msg, tw_lp *lp) {
   (void)s;
   (void)bf;
   (void)lp;
 
   // handle the message
-  if (in_msg->type == STEP) {
+  if (in_msg->type == MESSAGE_TYPE_step) {
     free(in_msg->rev_state);  // Freeing memory allocated by forward handler
   }
 }
@@ -414,16 +414,16 @@ void highlife_event_commit(state *s, tw_bf *bf, message *in_msg, tw_lp *lp) {
 
 // The finalization function
 // Reporting any final statistics for this LP in the file previously opened
-void highlife_final(state *s, tw_lp *lp) {
+void highlife_final(struct HighlifeState *s, tw_lp *lp) {
   uint64_t const self = lp->gid;
-  printf("LP %lu handled %d STEP messages\n", self, s->steps);
+  printf("LP %lu handled %d MESSAGE_TYPE_step messages\n", self, s->steps);
   printf("LP %lu: The current (local) time is %f\n\n", self, tw_now(lp));
 
   if (!s->fp) {
     perror("File opening failed\n");
     MPI_Abort(MPI_COMM_WORLD, -1);
   } else {
-    fprintf(s->fp, "%lu handled %d STEP messages\n", self, s->steps);
+    fprintf(s->fp, "%lu handled %d MESSAGE_TYPE_step messages\n", self, s->steps);
     fprintf(s->fp, "The current (local) time is %f\n\n", tw_now(lp));
     HL_printWorld(s->fp, s);
     fclose(s->fp);
