@@ -76,7 +76,8 @@ static inline void HL_initOnesAtCorners(struct HighlifeState *s, unsigned long s
   if (self == 0) {
     s->grid[W_WIDTH] = 1;                                   // upper left
     s->grid[2 * W_WIDTH - 1] = 1;                           // upper right
-  } else if (self == g_tw_total_lps - 1) {
+  }
+  if (self == g_tw_total_lps - 1) {
     s->grid[(W_WIDTH * (W_HEIGHT - 2))] = 1;                // lower left
     s->grid[(W_WIDTH * (W_HEIGHT - 2)) + W_WIDTH - 1] = 1;  // lower right
   }
@@ -243,7 +244,9 @@ static void send_tick(tw_lp *lp, float dt) {
   struct Message *msg = tw_event_data(e);
   msg->type = MESSAGE_TYPE_step;
   msg->sender = self;
+  msg->rev_state = NULL;
   tw_event_send(e);
+  assert_valid_Message(msg);
 }
 
 
@@ -261,6 +264,7 @@ static void send_rows(struct HighlifeState *s, tw_lp *lp) {
   msg_drow->dir = ROW_DIRECTION_down_row; // Other LP's down row, not mine
   copy_row(msg_drow->row, s->grid + W_WIDTH);
   tw_event_send(e_drow);
+  assert_valid_Message(msg_drow);
 
   tw_event *e_urow = tw_event_new(lp_id_down, 0.5, lp);
   struct Message *msg_urow = tw_event_data(e_urow);
@@ -268,6 +272,7 @@ static void send_rows(struct HighlifeState *s, tw_lp *lp) {
   msg_urow->dir = ROW_DIRECTION_up_row;
   copy_row(msg_urow->row, s->grid + (W_WIDTH * (W_HEIGHT - 2)));
   tw_event_send(e_urow);
+  assert_valid_Message(msg_drow);
 }
 
 
@@ -275,7 +280,7 @@ static void send_rows(struct HighlifeState *s, tw_lp *lp) {
 // These functions are called directly by ROSS
 
 // LP initialization. Called once for each LP
-void highlife_init(struct HighlifeState *s, tw_lp *lp) {
+void highlife_init(struct HighlifeState *s, struct tw_lp *lp) {
   uint64_t const self = lp->gid;
   s->grid = malloc(W_WIDTH * W_HEIGHT * sizeof(unsigned char));
 
@@ -302,7 +307,7 @@ void highlife_init(struct HighlifeState *s, tw_lp *lp) {
   // Creating file handler and printing initial state of the grid
   s->fp = fopen(filename, "w");
   if (!s->fp) {
-    perror("File opening failed\n");
+    fprintf(stderr, "File opening failed: '%s'\n", filename);
     MPI_Abort(MPI_COMM_WORLD, -1);
   } else {
     HL_printWorld(s->fp, s);
@@ -314,13 +319,18 @@ void highlife_init(struct HighlifeState *s, tw_lp *lp) {
   s->next_beat_sent = 1;
   // Sending rows to update
   send_rows(s, lp);
+  assert_valid_HighlifeState(s);
 }
 
 
 // Forward event handler
-void highlife_event(struct HighlifeState *s, tw_bf *bf, struct Message *in_msg, tw_lp *lp) {
+void highlife_event(
+        struct HighlifeState *s,
+        struct tw_bf *bitfield,
+        struct Message *in_msg,
+        struct tw_lp *lp) {
   // initialize the bit field
-  bf->c0 = s->next_beat_sent;
+  bitfield->c0 = s->next_beat_sent;
 
   // handle the message
   switch (in_msg->type) {
@@ -365,13 +375,18 @@ void highlife_event(struct HighlifeState *s, tw_bf *bf, struct Message *in_msg, 
     break;
     }
   }
+  assert_valid_Message(in_msg);
 }
 
 
 // Reverse Event Handler
 // Notice that all operations are reversed using the data stored in either the reverse
 // message or the bit field
-void highlife_event_reverse(struct HighlifeState *s, tw_bf *bf, struct Message *in_msg, tw_lp *lp) {
+void highlife_event_reverse(
+        struct HighlifeState *s,
+        struct tw_bf *bitfield,
+        struct Message *in_msg,
+        struct tw_lp *lp) {
   (void)lp;
 
   // handle the message
@@ -380,6 +395,7 @@ void highlife_event_reverse(struct HighlifeState *s, tw_bf *bf, struct Message *
     s->steps--;
     POINTER_SWAP(s->grid, in_msg->rev_state);
     free(in_msg->rev_state);  // Freeing memory allocated by forward handler
+    in_msg->rev_state = NULL;
     break;
   case MESSAGE_TYPE_row_update:
     switch (in_msg->dir) {
@@ -393,34 +409,41 @@ void highlife_event_reverse(struct HighlifeState *s, tw_bf *bf, struct Message *
     break;
   }
 
-  s->next_beat_sent = bf->c0;
+  s->next_beat_sent = bitfield->c0;
+  assert_valid_Message(in_msg);
 }
 
 
 // Commit event handler
 // This function is only called when it can be make sure that the message won't be
 // roll back. Either the commit or reverse handler will be called, not both
-void highlife_event_commit(struct HighlifeState *s, tw_bf *bf, struct Message *in_msg, tw_lp *lp) {
+void highlife_event_commit(
+        struct HighlifeState *s,
+        struct tw_bf *bitfield,
+        struct Message *in_msg,
+        struct tw_lp *lp) {
   (void)s;
-  (void)bf;
+  (void)bitfield;
   (void)lp;
 
   // handle the message
   if (in_msg->type == MESSAGE_TYPE_step) {
     free(in_msg->rev_state);  // Freeing memory allocated by forward handler
+    in_msg->rev_state = NULL;
   }
+  assert_valid_Message(in_msg);
 }
 
 
 // The finalization function
 // Reporting any final statistics for this LP in the file previously opened
-void highlife_final(struct HighlifeState *s, tw_lp *lp) {
+void highlife_final(struct HighlifeState *s, struct tw_lp *lp) {
   uint64_t const self = lp->gid;
   printf("LP %lu handled %d MESSAGE_TYPE_step messages\n", self, s->steps);
   printf("LP %lu: The current (local) time is %f\n\n", self, tw_now(lp));
 
   if (!s->fp) {
-    perror("File opening failed\n");
+    fprintf(stderr, "File to output is closed!\n");
     MPI_Abort(MPI_COMM_WORLD, -1);
   } else {
     fprintf(s->fp, "%lu handled %d MESSAGE_TYPE_step messages\n", self, s->steps);

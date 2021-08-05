@@ -1,3 +1,6 @@
+# This is to allow tests to include header files without ugly "../../.."
+set(HIGHLIFE_SOURCE_DIR "${CMAKE_CURRENT_SOURCE_DIR}" PARENT_SCOPE)
+
 # Setting up ROSS and additional utilities (Git stuff is used in
 # configuration header file, below)
 include_directories(
@@ -12,44 +15,36 @@ get_git_head_revision(GIT_RESPEC_MODEL GIT_SHA1_MODEL)
 
 # Building configuration header file
 configure_file(
-  ${CMAKE_CURRENT_SOURCE_DIR}/${MODEL_NAME}_config.h.in
-  ${CMAKE_CURRENT_BINARY_DIR}/${MODEL_NAME}_config.h
+  ${CMAKE_CURRENT_SOURCE_DIR}/highlife_config.h.in
+  ${CMAKE_CURRENT_BINARY_DIR}/highlife_config.h
   @ONLY
 )
 set_source_files_properties(
-  ${CMAKE_CURRENT_BINARY_DIR}/${MODEL_NAME}_config.h
+  ${CMAKE_CURRENT_BINARY_DIR}/highlife_config.h
   PROPERTIES GENERATED TRUE
 )
 include_directories(${CMAKE_CURRENT_BINARY_DIR})
 
-# Compiling ROSS model (${MODEL_NAME})
-set(model_srcs
+add_library(highlife_lib
   driver.c
   mapping.c
   utils.c
-  ${MODEL_NAME}.main.c
 )
 
-add_executable(${MODEL_NAME} ${model_srcs})
-target_link_libraries(${MODEL_NAME}
+# Compiling ROSS highlife model
+add_executable(highlife highlife.main.c)
+target_link_libraries(highlife
   PRIVATE
+    highlife_lib
     m
     ROSS
 #   RIO # uncomment if using RIO
 )
 
-# Setting optimizations
-set(CMAKE_C_FLAGS "${CMAKE_C_FLAGS} -mtune=native \
--Wall -Wextra -Wpedantic \
--Wformat=2 -Wno-unused-parameter -Wshadow \
--Wwrite-strings -Wold-style-definition \
--Wnested-externs -Wmissing-include-dirs")
-#-Wstrict-prototypes -Wredundant-decls
-
 # Including variables that indicate where the usr/bin is.
 # It defines ${CMAKE_INSTALL_FULL_BINDIR}
 include(GNUInstallDirs)
-install(FILES ${CMAKE_CURRENT_BINARY_DIR}/${MODEL_NAME}
+install(FILES ${CMAKE_CURRENT_BINARY_DIR}/highlife
   DESTINATION ${CMAKE_INSTALL_FULL_BINDIR}
   PERMISSIONS
     OWNER_READ OWNER_WRITE OWNER_EXECUTE GROUP_READ GROUP_EXECUTE
