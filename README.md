@@ -61,18 +61,18 @@ starting on ROSS development.
 The following are a series of proposed exercises various characteristics of ROSS yet to be
 implemented in the model:
 
-- The code should be self-contained and easy to read. First, modify `W_WIDTH` and
-   `W_HEIGHT` (keep values at least 6 for now), run the code, check the stats for each
-   case and as well as the files under `output/`
-- Allow as many LPs as the user wishes to use per PE, instead of 1 as it is currently
-    encoded.
+- Play around with the code to familiarize yourself. Modify `W_WIDTH` and `W_HEIGHT`
+    (don't go to numbers below 6), run the code, and check the stats for each case as well
+    as the files under `output/`
+- Create a new option in the program that allows the user to choose the number of LPs per SE.
+    Currently, the number encoded is 1.
 - Each LP holds a portion of the world of size `W_WIDTH x W_HEIGHT` and has only two
     neighbors, one above and one below. Modify this to allow for LPs to have neighbors at
     the sides as well. Now, there would be two variables, not only one per PE to idicate
-    how many LPs would be per PE.
+    how many LPs would be per PE. (This is long.)
 - Modify `W_WIDTH` and `W_HEIGHT`, run the code and check the stats again. What is the
     best value for `W_WIDTH` and `W_HEIGHT`?
-- Create a new LP type that will be in charge of initializing the world removing such
-    responsibility from the regular LPs. This requires to add new message type and a
-    custom LP mapping. The LP mapping is in charge of determining which LP is in charge of
-    initializing and which are regular grid portions.
+- Create a new LP type in charge of initializing the world, removing such responsibility
+    from the regular LPs. This requires to add new message type and a custom LP mapping.
+    The LP mapping is in charge of determining which LP is in charge of initializing and
+    which are hold grid portions.
