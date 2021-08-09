@@ -44,23 +44,23 @@ static inline void copy_row(unsigned char * const into, unsigned char const * co
 
 // ------------------------- Helper initialization functions -------------------------
 
-static inline void HL_initAllZeros(struct HighlifeState *s) {
+static inline void hl_init_all_zeros(struct HighlifeState *s) {
   for (size_t i = 0; i < W_WIDTH * W_HEIGHT; i++) {
       s->grid[i] = 0;
   }
 }
 
 
-static inline void HL_initAllOnes(struct HighlifeState *s) {
-  HL_initAllZeros(s);
+static inline void hl_init_all_ones(struct HighlifeState *s) {
+  hl_init_all_zeros(s);
   for (size_t i = W_WIDTH; i < W_WIDTH * (W_HEIGHT - 1); i++) {
       s->grid[i] = 1;
   }
 }
 
 
-static inline void HL_initOnesInMiddle(struct HighlifeState *s) {
-  HL_initAllZeros(s);
+static inline void hl_init_ones_in_middle(struct HighlifeState *s) {
+  hl_init_all_zeros(s);
   // Iterating over row 10
   for (size_t i = 10 * W_WIDTH; i < 11 * W_WIDTH; i++) {
     if ((i >= (10 * W_WIDTH + 10)) && (i < (10 * W_WIDTH + 20))) {
@@ -70,8 +70,8 @@ static inline void HL_initOnesInMiddle(struct HighlifeState *s) {
 }
 
 
-static inline void HL_initOnesAtCorners(struct HighlifeState *s, unsigned long self) {
-  HL_initAllZeros(s);
+static inline void hl_init_ones_at_corners(struct HighlifeState *s, unsigned long self) {
+  hl_init_all_zeros(s);
 
   if (self == 0) {
     s->grid[W_WIDTH] = 1;                                   // upper left
@@ -84,8 +84,8 @@ static inline void HL_initOnesAtCorners(struct HighlifeState *s, unsigned long s
 }
 
 
-static inline void HL_initSpinnerAtCorner(struct HighlifeState *s, unsigned long self) {
-  HL_initAllZeros(s);
+static inline void hl_init_spinner_at_corner(struct HighlifeState *s, unsigned long self) {
+  hl_init_all_zeros(s);
 
   if (self == 0) {
     s->grid[W_WIDTH] = 1;            // upper left
@@ -95,8 +95,8 @@ static inline void HL_initSpinnerAtCorner(struct HighlifeState *s, unsigned long
 }
 
 
-static inline void HL_initReplicator(struct HighlifeState *s, unsigned long self) {
-  HL_initAllZeros(s);
+static inline void hl_init_replicator(struct HighlifeState *s, unsigned long self) {
+  hl_init_all_zeros(s);
 
   if (self == 0) {
     size_t x, y;
@@ -113,8 +113,8 @@ static inline void HL_initReplicator(struct HighlifeState *s, unsigned long self
 }
 
 
-static inline void HL_initDiagonal(struct HighlifeState *s) {
-  HL_initAllZeros(s);
+static inline void hl_init_diagonal(struct HighlifeState *s) {
+  hl_init_all_zeros(s);
 
   for (int i = 0; i < W_WIDTH && i < W_HEIGHT; i++) {
       s->grid[(i+1)*W_WIDTH + i] = 1;
@@ -122,7 +122,7 @@ static inline void HL_initDiagonal(struct HighlifeState *s) {
 }
 
 
-static void HL_printWorld(FILE *stream, struct HighlifeState *s) {
+static void hl_print_world(FILE *stream, struct HighlifeState *s) {
   size_t i, j;
 
   fprintf(stream, "Print World - Iteration %d\n", s->steps);
@@ -152,7 +152,7 @@ static void HL_printWorld(FILE *stream, struct HighlifeState *s) {
 // -------------------------- Helper HighLife step functions -------------------------
 
 /** Determines the number of alive cells around a given point in space */
-static inline unsigned int HL_countAliveCells(
+static inline unsigned int hl_count_alive_cells(
         unsigned char *data, size_t x0, size_t x1, size_t x2, size_t y0, size_t y1, size_t y2) {
   // y1+x1 represents the position in the one dimensional array where
   // the point (y, x) would be located in 2D space, if the array was a
@@ -167,7 +167,7 @@ static inline unsigned int HL_countAliveCells(
 
 
 /** Serial version of standard byte-per-cell life */
-static int HL_iterateSerial(unsigned char *grid, unsigned char *grid_msg) {
+static int hl_iterate_serial(unsigned char *grid, unsigned char *grid_msg) {
   int changed = 0; // Tracking change in the grid
 
   // The code seems more intricate than what it actually is.
@@ -220,7 +220,7 @@ static int HL_iterateSerial(unsigned char *grid, unsigned char *grid_msg) {
       // Determining the next state for a single cell. We count how
       // many alive neighbours the current (y, x) cell has and
       // follow the rules for HighLife
-      int neighbours = HL_countAliveCells(grid, x0, x1, x2, y0, y1, y2);
+      int neighbours = hl_count_alive_cells(grid, x0, x1, x2, y0, y1, y2);
       if (grid[y1 + x1]) {  // if alive
         grid_msg[y1 + x1] = neighbours == 2 || neighbours == 3;
       } else {  // if dead
@@ -285,13 +285,13 @@ void highlife_init(struct HighlifeState *s, struct tw_lp *lp) {
   s->grid = malloc(W_WIDTH * W_HEIGHT * sizeof(unsigned char));
 
   switch (init_pattern) {
-  case 0: HL_initAllZeros(s); break;
-  case 1: HL_initAllOnes(s); break;
-  case 2: HL_initOnesInMiddle(s); break;
-  case 3: HL_initOnesAtCorners(s, self); break;
-  case 4: HL_initSpinnerAtCorner(s, self); break;
-  case 5: HL_initReplicator(s, self); break;
-  case 6: HL_initDiagonal(s); break;
+  case 0: hl_init_all_zeros(s); break;
+  case 1: hl_init_all_ones(s); break;
+  case 2: hl_init_ones_in_middle(s); break;
+  case 3: hl_init_ones_at_corners(s, self); break;
+  case 4: hl_init_spinner_at_corner(s, self); break;
+  case 5: hl_init_replicator(s, self); break;
+  case 6: hl_init_diagonal(s); break;
   default:
     printf("Pattern %u has not been implemented \n", init_pattern);
     /*exit(-1);*/
@@ -310,7 +310,7 @@ void highlife_init(struct HighlifeState *s, struct tw_lp *lp) {
     fprintf(stderr, "File opening failed: '%s'\n", filename);
     MPI_Abort(MPI_COMM_WORLD, -1);
   } else {
-    HL_printWorld(s->fp, s);
+    hl_print_world(s->fp, s);
     fprintf(s->fp, "\n");
   }
 
@@ -338,7 +338,7 @@ void highlife_event(
     in_msg->rev_state = calloc(W_WIDTH * W_HEIGHT, sizeof(unsigned char));
 
     // Next step in the simulation (is stored in second parameter)
-    int changed = HL_iterateSerial(s->grid, in_msg->rev_state);
+    int changed = hl_iterate_serial(s->grid, in_msg->rev_state);
     // Exchanging parameters from one site to the other
     POINTER_SWAP(s->grid, in_msg->rev_state);
     s->next_beat_sent = 0;
@@ -363,7 +363,7 @@ void highlife_event(
       break;
     case ROW_DIRECTION_down_row:
       change = array_swap(s->grid + W_WIDTH*(W_HEIGHT-1), in_msg->row, W_WIDTH);
-      /*HL_printWorld(stdout, s);*/
+      /*hl_print_world(stdout, s);*/
       break;
     }
     if (!s->next_beat_sent && change) {
@@ -448,7 +448,7 @@ void highlife_final(struct HighlifeState *s, struct tw_lp *lp) {
   } else {
     fprintf(s->fp, "%lu handled %d MESSAGE_TYPE_step messages\n", self, s->steps);
     fprintf(s->fp, "The current (local) time is %f\n\n", tw_now(lp));
-    HL_printWorld(s->fp, s);
+    hl_print_world(s->fp, s);
     fclose(s->fp);
   }
   free(s->grid);
