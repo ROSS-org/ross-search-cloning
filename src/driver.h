@@ -1,40 +1,21 @@
-#ifndef HIGHLIFE_DRIVER_H
-#define HIGHLIFE_DRIVER_H
+#ifndef SEARCH_DRIVER_H
+#define SEARCH_DRIVER_H
 
 /** @file
- * Functions implementing Highlife as PDES in ROSS.
+ * Functions implementing search algorithm as PDES in ROSS.
  */
 
-#include "state.h"
+/** Setting grid map file for the simulation. */
+void driver_config(const char *grid_map_file);
 
-/** Setting global variables to by the simulation. */
-void driver_config(int init_pattern);
+/** Initialize the driver (parse grid file). */
+int driver_init(void);
 
-/** Grid initialization and first heartbeat. */
-void highlife_init(struct HighlifeState *s, struct tw_lp *lp);
+/** Clean up driver resources. */
+void driver_finalize(void);
 
-/** Forward event handler. */
-void highlife_event(
-        struct HighlifeState *s,
-        struct tw_bf *bf,
-        struct Message *in_msg,
-        struct tw_lp *lp);
+/** Write final results to output file. */
+void write_final_output(void);
 
-/** Reverse event handler. */
-void highlife_event_reverse(
-        struct HighlifeState *s,
-        struct tw_bf *bf,
-        struct Message *in_msg,
-        struct tw_lp *lp);
 
-/** Commit event handler. */
-void highlife_event_commit(
-        struct HighlifeState *s,
-        struct tw_bf *bf,
-        struct Message *in_msg,
-        struct tw_lp *lp);
-
-/** Cleaning and printing info before shut down. */
-void highlife_final(struct HighlifeState *s, struct tw_lp *lp);
-
-#endif /* end of include guard */
+#endif /* SEARCH_DRIVER_H */

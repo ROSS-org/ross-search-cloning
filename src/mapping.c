@@ -1,6 +1,6 @@
 #include <ross.h>
 
-tw_peid highlife_map(tw_lpid gid) { return (tw_peid)gid / g_tw_nlp; }
+tw_peid search_lp_map(tw_lpid gid) { return (tw_peid)gid / g_tw_nlp; }
 
 /*
 // Multiple LP Types mapping function

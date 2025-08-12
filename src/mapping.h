@@ -1,5 +1,5 @@
-#ifndef HIGHLIFE_MAPPING_H
-#define HIGHLIFE_MAPPING_H
+#ifndef SEARCH_MAPPING_H
+#define SEARCH_MAPPING_H
 
 /** @file
  * The mapping for LPs to SEs in a ROSS model.
@@ -17,7 +17,7 @@
 /** Mapping of LPs to SEs.
  * Given an LP's GID (global ID) return the PE (aka node, MPI Rank)
  */
-tw_peid highlife_map(tw_lpid gid);
+tw_peid search_lp_map(tw_lpid gid);
 
 /*
 void model_cutom_mapping(void);

@@ -1,174 +1,154 @@
-#ifndef HIGHLIFE_STATE_H
-#define HIGHLIFE_STATE_H
+#ifndef SEARCH_STATE_H
+#define SEARCH_STATE_H
 
 /** @file
- * Definition of messages and LP states for this simulation.
+ * Definition of messages and LP states for search algorithm simulation.
  */
 
 #include <ross.h>
 #include <stdbool.h>
 #include <assert.h>
 
-/** The world for a HighLife simulation is composed of stacked mini-worlds, one
- * per LP. The size of each mini-world is `W_WIDTH x W_HEIGHT`.
- */
-#define W_WIDTH 20
-#define W_HEIGHT (20 + 2)
+/** Maximum dimensions for the search grid */
+#define MAX_GRID_WIDTH 100
+#define MAX_GRID_HEIGHT 100
+
+// ================================ Enums ===================================
+
+/** Cell types in the search grid */
+enum CellType {
+  CELL_FREE = 0,     /**< Free space, agent can move here */
+  CELL_OBSTACLE = 1, /**< Obstacle, agent cannot move here */
+  CELL_START = 2,    /**< Starting position */
+  CELL_GOAL = 3      /**< Goal position */
+};
+
+/** Direction enumeration */
+enum Direction {
+  DIR_NORTH = 0,  /**< North (up) */
+  DIR_SOUTH = 1,  /**< South (down) */
+  DIR_EAST = 2,   /**< East (right) */
+  DIR_WEST = 3,   /**< West (left) */
+  DIR_NONE = 4    /**< No direction / not set */
+};
+
+// ================================ Global variables ===============================
+
+/** Global grid dimensions and data (set at runtime) */
+extern int g_grid_width;
+extern int g_grid_height;
+extern int g_start_x, g_start_y;
+extern int g_goal_x, g_goal_y;
+
+/** Global grid arrays for initial state and final results (shared per PE) */
+extern enum CellType *g_initial_grid;  /**< Initial grid layout (read at init) */
+extern bool *g_visited_grid;           /**< Final: which cells were visited (written at finalize) */
+extern enum Direction *g_exit_dirs;    /**< Final: exit direction from each cell (written at finalize) */
 
 // ================================ State struct ===============================
 
-/** This defines the state for all LPs.
- * Struct invariants:
- * - `steps >= 0`
- * - If `grid` is null, so has to be `fp`
- * - The size of `grid` is `W_WIDTH * W_HEIGHT` (This is
- *   impossible to check or enforce, please make sure to allocate
- *   the space correctly).
- * - The contents of all cells in `grid` (if not NULL) are either
- *   0 or 1
- **/
-struct HighlifeState {
-  int steps;            /**< Number of HighLife steps executed by LP. If a
-                          mini-world stays the same after one step of HighLife
-                          on its grid, it is not a step and it won't
-                          alter/bother neighbour. */
-  bool next_beat_sent;  /**< This boolean is used to determine whether the next
-                          heartbeat. has already been produced by another event
-                          or it should be created by the current event being
-                          processed. */
-  unsigned char *grid;  /**< Pointer to the mini-world (grid). */
-  // TODO(helq): the state of an LP shouldn't include a file handler, this
-  // puts, probably a lot of pression on IO, even more if it is parallel IO
-  FILE *fp;             /**< The file in which to save some stats and the grid
-                          at the start and end of simulation. */
+/** State for each cell LP in the search simulation.
+ * Each LP represents one cell in the grid.
+ */
+struct SearchCellState {
+  int x, y;                    /**< Cell coordinates */
+  enum CellType cell_type;     /**< Type of this cell */
+  bool available_dirs[4];      /**< Which directions are available (N,S,E,W) */
+  bool was_visited;            /**< Whether agent has visited this cell */
+  enum Direction exit_dir;     /**< Direction agent exited (for path reconstruction) */
 };
 
-static inline bool is_valid_HighlifeState(struct HighlifeState * hs) {
-    bool invariants_1_to_2 = (hs->steps >= 0)
-                         && ((hs->grid == NULL) == (hs->fp == NULL));
-
-    if (invariants_1_to_2 && hs->grid != NULL) {
-        // checking fourth invariant (opposite of invariant, actually)
-        for (size_t i = 0; i < W_WIDTH * W_HEIGHT; i++) {
-            // Detecting if number is different from 0 or 1
-            if (hs->grid[i] & (~0x1)) {
-                return false;
-            }
-        }
-        return true;
-    }
-    return invariants_1_to_2;
+/** Helper functions for global grid access */
+static inline int grid_index(int x, int y) {
+    return y * g_grid_width + x;
 }
 
-static inline void assert_valid_HighlifeState(struct HighlifeState * hs) {
+static inline bool is_valid_position(int x, int y) {
+    return x >= 0 && x < g_grid_width && y >= 0 && y < g_grid_height;
+}
+
+static inline bool is_valid_SearchCellState(struct SearchCellState *s) {
+    return s->x >= 0 && s->x < g_grid_width &&
+           s->y >= 0 && s->y < g_grid_height &&
+           s->cell_type >= CELL_FREE && s->cell_type <= CELL_GOAL &&
+           s->exit_dir >= DIR_NORTH && s->exit_dir <= DIR_NONE;
+}
+
+static inline void assert_valid_SearchCellState(struct SearchCellState *s) {
 #ifndef NDEBUG
-    // First invariant
-    assert(hs->steps >= 0);
-    // Second invariant
-    assert((hs->grid == NULL) == (hs->fp == NULL));
-    // checking fourth invariant
-    if (hs->grid != NULL) {
-        for (size_t i = 0; i < W_WIDTH * W_HEIGHT; i++) {
-            assert(! (hs->grid[i] & (~0x1)));
-        }
-    }
-#endif // NDEBUG
+    assert(s->x >= 0 && s->x < g_grid_width);
+    assert(s->y >= 0 && s->y < g_grid_height);
+    assert(s->cell_type >= CELL_FREE && s->cell_type <= CELL_GOAL);
+    assert(s->exit_dir >= DIR_NORTH && s->exit_dir <= DIR_NONE);
+#endif
 }
 
 // ========================= Message enums and structs =========================
 
-/** There are two types of messages. */
+/** Types of messages in the search simulation */
 enum MESSAGE_TYPE {
-  MESSAGE_TYPE_step,        /**< This is a heartbeat. It asks the LP to perform
-                              a step of HighLife in its grid. */
-  MESSAGE_TYPE_row_update,  /**< This tells the LP to replace its old row
-                              (either top or bottom) for the row contained in
-                              the body. */
+  MESSAGE_TYPE_agent_move,      /**< Agent moves to this cell */
+  MESSAGE_TYPE_cell_unavailable /**< Notification that a neighbor cell is unavailable */
 };
 
-/** A MESSAGE_TYPE_row_update message can be of two kinds. */
-enum ROW_DIRECTION {
-  ROW_DIRECTION_up_row,    /**< The row in the message should replace the top
-                             row in the grid. */
-  ROW_DIRECTION_down_row,  /**< The row in the message should replace the
-                             bottom row in the grid. */
-};
-
-/** This contains all data sent in an event.
- * There is only one type of message, so we define all the space needed to
- * store any of the reversible states as well as the data for the new update.
- * Invariants:
- * - `type` can only be one of `MESSAGE_TYPE`
- * - If `type` is step and `rev_state` is a non-NULL
- *   pointer, then `rev_state` must contain a valid grid (composed
- *   of only 1s or 0s)
- * - If `type` is row_update, `dir` can only be one of `ROW_DIRECTION`
- * - If `type` is row_update, then `row` must contain only 0s or 1s.
- */
-struct Message {
+/** Message data for search simulation events */
+struct SearchMessage {
   enum MESSAGE_TYPE type;
-  tw_lpid sender;              /**< Unique identifier of the LP who sent the
-                                 message. */
+  tw_lpid sender;
+
   union {
-    struct { // message type = step
-      unsigned char *rev_state;    /**< Storing the previous state to be
-                                     recovered by the reverse message handler.
-                                     */
-    };
-    struct { // message type = row_update
-      enum ROW_DIRECTION dir;      /**< In case `type` is ROW_UPDATE, this
-                                     indicates the direction. */
-      unsigned char row[W_WIDTH];  /**< In case `type` is ROW_UPDATE, this
-                                     contains the new row values. */
+    struct { // message type = cell_unavailable
+      enum Direction from_dir;     /**< Direction the notification came from */
     };
   };
 };
 
-static inline bool is_valid_Message(struct Message * msg) {
-    if (msg->type != MESSAGE_TYPE_step
-        && msg->type != MESSAGE_TYPE_row_update) {
+static inline bool is_valid_SearchMessage(struct SearchMessage *msg) {
+    if (msg->type != MESSAGE_TYPE_agent_move && msg->type != MESSAGE_TYPE_cell_unavailable) {
         return false;
     }
-    if (msg->type == MESSAGE_TYPE_step && msg->rev_state != NULL) {
-        for (size_t i = 0; i < W_WIDTH * W_HEIGHT; i++) {
-            if (msg->rev_state[i] & (~0x1)) {
-                return false;
-            }
-        }
-    }
-    if (msg->type == MESSAGE_TYPE_row_update) {
-        if (msg->dir != ROW_DIRECTION_down_row
-            && msg->dir != ROW_DIRECTION_up_row) {
-            return false;
-        }
-        for (size_t i = 0; i < sizeof(msg->row); i++) {
-            if (msg->row[i] & (~0x1)) {
-                return false;
-            }
-        }
+    if (msg->type == MESSAGE_TYPE_agent_move) {
+        return msg->from_dir >= DIR_NORTH && msg->from_dir <= DIR_NONE;
     }
     return true;
 }
 
-// This function might fail if `msg->rev_state` doesn't point to a
-// valid memory region
-static inline void assert_valid_Message(struct Message * msg) {
+static inline void assert_valid_SearchMessage(struct SearchMessage *msg) {
 #ifndef NDEBUG
-    assert(msg->type == MESSAGE_TYPE_step
-            || msg->type == MESSAGE_TYPE_row_update);
-    if (msg->type == MESSAGE_TYPE_step && msg->rev_state != NULL) {
-        for (size_t i = 0; i < W_WIDTH * W_HEIGHT; i++) {
-            assert(! (msg->rev_state[i] & (~0x1)));
-        }
+    assert(msg->type == MESSAGE_TYPE_agent_move || msg->type == MESSAGE_TYPE_cell_unavailable);
+    if (msg->type == MESSAGE_TYPE_agent_move) {
+        assert(msg->from_dir >= DIR_NORTH && msg->from_dir <= DIR_NONE);
     }
-    if (msg->type == MESSAGE_TYPE_row_update) {
-        assert(msg->dir == ROW_DIRECTION_down_row
-                || msg->dir == ROW_DIRECTION_up_row);
-        for (size_t i = 0; i < sizeof(msg->row); i++) {
-            assert(! (msg->row[i] & (~0x1)));
-        }
-    }
-#endif // NDEBUG
+#endif
 }
 
-#endif /* end of include guard */
+// ================================= LP function declarations ===============================
+
+/** Cell initialization. */
+void search_lp_init(struct SearchCellState *s, struct tw_lp *lp);
+
+/** Forward event handler. */
+void search_lp_event_handler(
+        struct SearchCellState *s,
+        struct tw_bf *bf,
+        struct SearchMessage *in_msg,
+        struct tw_lp *lp);
+
+/** Reverse event handler. */
+void search_lp_event_rev_handler(
+        struct SearchCellState *s,
+        struct tw_bf *bf,
+        struct SearchMessage *in_msg,
+        struct tw_lp *lp);
+
+/** Commit event handler. */
+void search_lp_event_commit(
+        struct SearchCellState *s,
+        struct tw_bf *bf,
+        struct SearchMessage *in_msg,
+        struct tw_lp *lp);
+
+/** Cell finalization. */
+void search_lp_final(struct SearchCellState *s, struct tw_lp *lp);
+
+#endif /* SEARCH_STATE_H */

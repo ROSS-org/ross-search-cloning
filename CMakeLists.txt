@@ -1,5 +1,5 @@
-cmake_minimum_required(VERSION 3.0)
-project(highlife)
+cmake_minimum_required(VERSION 4.0)
+project(search)
 include(CTest)
 
 set(CMAKE_C_STANDARD 17)

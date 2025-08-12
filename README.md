@@ -1,48 +1,107 @@
-# HighLife in ROSS
+# Search Algorithm in ROSS
 
-This is a small model implementing [HighLife][] in [ROSS][], a (massively) parallel
-discrete event simulator, based on the [template model][template-model].
+This is a PDES model implementing a random search algorithm in [ROSS][], a (massively) parallel discrete event simulator. The model simulates an agent trying to find a goal in a grid world with obstacles by random exploration.
 
-[HighLife]: https://conwaylife.com/wiki/OCA:HighLife
 [ROSS]: https://github.com/ROSS-org/ROSS
-[template-model]: https://github.com/ROSS-org/template-model
 
-# Compilation
+## Algorithm Description
+
+The search algorithm works as follows:
+
+1. **Grid Setup**: A 2D grid is loaded from a file containing:
+   - `.` = free space (agent can move here)
+   - `#` = obstacle (agent cannot move here)
+   - `S` = start position (where agent begins)
+   - `G` = goal position (agent's target)
+
+2. **Agent Behavior**:
+   - Agent starts at the 'S' position
+   - At each step, randomly selects an available direction (avoiding obstacles and previously visited cells)
+   - Moves to the selected cell and marks it as visited
+   - Notifies neighboring cells that this position is no longer available
+   - Continues until reaching the goal or getting stuck (no available moves)
+
+3. **PDES Implementation**:
+   - Each grid cell is represented by a separate LP (Logical Process)
+   - Agent movement and cell state updates are communicated via events
+   - No shared mutable state during simulation (PDES compliant)
+
+## Compilation
 
 The following are the instructions to download and compile:
 
 ```bash
-git clone --recursive https://github.com/helq/highlife-ross
-mkdir highlife-ross/build
-cd highlife-ross/build
+git clone --recursive https://github.com/ross-org/search-ross
+mkdir search-ross/build
+cd search-ross/build
 cmake .. -DCMAKE_INSTALL_PREFIX="$(pwd -P)/"
 make install
 ```
 
-After compiling, you will find the executable under the folder: `build/bin`
+After compiling, you will find the executable under the folder: `build/src/`
 
-# Execution
+## Grid File Format
 
-An example of running in one core or two:
+Create a grid file with the following format:
+
+```
+// Comments start with //
+// First non-comment line: width height
+9 7
+// Grid layout (one character per cell, spaces are ignored)
+. . . . . . . . .
+. S . . . # . . .
+. . . . . . . . .
+. . . . . # . # .
+. # . # # . . . .
+. . . . . . . G #
+. . . # . . . . .
+```
+
+## Execution
+
+Example usage:
 
 ```bash
 cd build
-bin/highlife --help
-mpirun -np 2 bin/highlife --sync=2 --batch=1 --pattern=5 --end=41
+src/search --grid-map=path/to/grid.txt
 ```
 
-Inside the directory `output/` there will be two files containing the initial highlife
-world and the final state after iteration 40.
+Required options:
+- `--grid-map=FILE`: Path to the grid file
+- `--end=TIME`: Simulation end time
 
-Given the nature of interlocked execution for highlife, the best option is `--sync=2` not
-`--sync=3`, i.e, conservative execution trumps over optimistic. This is because events can
-be processed much faster than they are transmited between LPs (so, rollback eats a
-considerable amount of time at execution time in the optimistic mode).
+The simulation will create a `search-results.txt` file showing:
+- Whether the goal was reached
+- Grid visualization with path taken:
+  - `S` = start position
+  - `G` = goal (reached) or `g` = goal (unreached)
+  - `^>v<` = direction agent exited from each visited cell
+  - `X` = agent got stuck here
+  - `#` = obstacle
+  - `.` = unvisited free space
 
-# Documentation
+## Example Output
 
-To generate the documentation, install [doxygen][] and dot (included in [graphviz][]), and
-then run:
+```
+Search Algorithm Results
+Grid size: 9x7
+Start: (1,1), Goal: (6,5)
+Goal reached: YES
+
+Grid visualization:
+. . . . . . . . .
+. S > > > # . . .
+. . . . v . . . .
+. . . . v # . # .
+. # . # > > v . .
+. . . . . . > G #
+. . . # . . . . .
+```
+
+## Documentation
+
+To generate the documentation, install [doxygen][] and dot (included in [graphviz][]), and then run:
 
 ```bash
 doxygen docs/Doxyfile
@@ -53,26 +112,11 @@ The documentation will be stored in `docs/html`.
 [doxygen]: https://www.doxygen.nl/
 [graphviz]: https://www.graphviz.org/
 
-# Exercises for the reader
+## Model Architecture
 
-This HighLife model is meant mostly as an educational tool for the dear reader/developer
-starting on ROSS development.
-
-The following are a series of proposed exercises various characteristics of ROSS yet to be
-implemented in the model:
-
-- Play around with the code to familiarize yourself. Modify `W_WIDTH` and `W_HEIGHT`
-    (don't go to numbers below 6), run the code, and check the stats for each case as well
-    as the files under `output/`
-- Create a new option in the program that allows the user to choose the number of LPs per SE.
-    Currently, the number encoded is 1.
-- Each LP holds a portion of the world of size `W_WIDTH x W_HEIGHT` and has only two
-    neighbors, one above and one below. Modify this to allow for LPs to have neighbors at
-    the sides as well. Now, there would be two variables, not only one per PE to idicate
-    how many LPs would be per PE. (This is long.)
-- Modify `W_WIDTH` and `W_HEIGHT`, run the code and check the stats again. What is the
-    best value for `W_WIDTH` and `W_HEIGHT`?
-- Create a new LP type in charge of initializing the world, removing such responsibility
-    from the regular LPs. This requires to add new message type and a custom LP mapping.
-    The LP mapping is in charge of determining which LP is in charge of initializing and
-    which are hold grid portions.
+- **State**: Each cell LP maintains local state (position, type, visited status, available directions)
+- **Events**:
+  - `MESSAGE_TYPE_agent_move`: Agent arrives at a cell
+  - `MESSAGE_TYPE_cell_unavailable`: Notification that a neighbor became unavailable
+- **Global Data**: Grid layout and final results (read at init, written at finalize)
+- **Output**: Path visualization using directional characters
