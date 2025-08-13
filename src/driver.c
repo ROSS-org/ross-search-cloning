@@ -136,6 +136,39 @@ void driver_finalize(void) {
 
 // ================================= Output functions ================================
 
+#ifndef ASCII_ONLY_VISUALIZATION
+// Lookup table for line visualization: [entry_dir][exit_dir] -> character
+static const char* line_chars[5][5] = {
+    //     N    S    E    W    NONE
+    /*N*/ {"?", "│", "└", "┘", "X"},
+    /*S*/ {"│", "?", "┌", "┐", "X"},
+    /*E*/ {"└", "┌", "?", "─", "X"},
+    /*W*/ {"┘", "┐", "─", "?", "X"},
+    /*?*/ {"?", "?", "?", "?", "?"}
+};
+
+static enum Direction get_entry_direction(int x, int y) {
+    if (is_valid_position(x, y-1) && g_visited_grid[grid_index(x, y-1)] &&
+        g_exit_dirs[grid_index(x, y-1)] == DIR_SOUTH) return DIR_NORTH;
+    if (is_valid_position(x, y+1) && g_visited_grid[grid_index(x, y+1)] &&
+        g_exit_dirs[grid_index(x, y+1)] == DIR_NORTH) return DIR_SOUTH;
+    if (is_valid_position(x-1, y) && g_visited_grid[grid_index(x-1, y)] &&
+        g_exit_dirs[grid_index(x-1, y)] == DIR_EAST) return DIR_WEST;
+    if (is_valid_position(x+1, y) && g_visited_grid[grid_index(x+1, y)] &&
+        g_exit_dirs[grid_index(x+1, y)] == DIR_WEST) return DIR_EAST;
+    return DIR_NONE;
+}
+
+static const bool connects_to_the_right[5][5] = {
+    //     N     S     E     W     NONE
+    /*N*/ {false, false, true,  false, false},
+    /*S*/ {false, false, true,  false, false},
+    /*E*/ {true,  true,  false, true,  false},
+    /*W*/ {false, false, true,  false, false},
+    /*?*/ {false, false, false, false, false}
+};
+#endif
+
 void write_final_output(void) {
     if (!g_visited_grid || !g_exit_dirs) return;
 
@@ -159,14 +192,23 @@ void write_final_output(void) {
             bool visited = g_visited_grid[idx];
             enum Direction exit_dir = g_exit_dirs[idx];
 
-            char c = '.';
             if (cell_type == CELL_OBSTACLE) {
-                c = '#';
+                fprintf(fp, "# ");
             } else if (x == g_start_x && y == g_start_y) {
-                c = 'S';
+                fprintf(fp, "S ");
             } else if (x == g_goal_x && y == g_goal_y) {
-                c = visited ? 'G' : 'g';  // Capital if reached
+                fprintf(fp, "%c ", visited ? 'G' : 'g');  // Capital if reached
             } else if (visited) {
+#ifndef ASCII_ONLY_VISUALIZATION
+                enum Direction entry_dir = get_entry_direction(x, y);
+                const char* line_char = line_chars[entry_dir][exit_dir];
+                if (connects_to_the_right[entry_dir][exit_dir]) {
+                    fprintf(fp, "%s─", line_char);
+                } else {
+                    fprintf(fp, "%s ", line_char);
+                }
+#else
+                char c = '.';
                 switch (exit_dir) {
                     case DIR_NORTH: c = '^'; break;
                     case DIR_SOUTH: c = 'v'; break;
@@ -174,9 +216,11 @@ void write_final_output(void) {
                     case DIR_WEST:  c = '<'; break;
                     default: c = 'X'; break;  // Stuck
                 }
+                fprintf(fp, "%c ", c);
+#endif
+            } else {
+                fprintf(fp, ". ");
             }
-
-            fprintf(fp, "%c ", c);
         }
         fprintf(fp, "\n");
     }

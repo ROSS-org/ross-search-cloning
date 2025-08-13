@@ -4,6 +4,12 @@ include(CTest)
 
 set(CMAKE_C_STANDARD 17)
 
+# Option for line-based visualization
+option(ASCII_ONLY_VISUALIZATION "Use ascii characters only for path visualization" OFF)
+if(ASCII_ONLY_VISUALIZATION)
+    add_definitions(-DASCII_ONLY_VISUALIZATION)
+endif()
+
 add_subdirectory(external)
 
 # Setting optimizations (ignoring external as there is nothing we
