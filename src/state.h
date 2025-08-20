@@ -151,4 +151,7 @@ void search_lp_event_commit(
 /** Cell finalization. */
 void search_lp_final(struct SearchCellState *s, struct tw_lp *lp);
 
+/** Exporting function to the director to schedule agent movement, to choose a path */
+void send_agent_move(tw_lp *lp, int x, int y, enum Direction direction, double at);
+
 #endif /* SEARCH_STATE_H */

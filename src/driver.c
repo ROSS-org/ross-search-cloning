@@ -172,7 +172,9 @@ static const bool connects_to_the_right[5][5] = {
 void write_final_output(void) {
     if (!g_visited_grid || !g_exit_dirs) return;
 
-    FILE *fp = fopen("search-results.txt", "w");
+    char filename[256];
+    snprintf(filename, sizeof(filename), "search-results-pe=%d.txt", (int) g_tw_mynode);
+    FILE *fp = fopen(filename, "w");
     if (!fp) {
         fprintf(stderr, "Error: Cannot create output file\n");
         return;
@@ -226,7 +228,7 @@ void write_final_output(void) {
     }
 
     fclose(fp);
-    printf("Results written to search-results.txt\n");
+    printf("Results written to %s\n", filename);
 }
 
 

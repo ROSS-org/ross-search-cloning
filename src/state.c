@@ -1,8 +1,12 @@
 #include "state.h"
+#include "director.h"
+#include "ross-kernel-inline.h"
 #include <stdio.h>
 #include <string.h>
 
 // ================================= Global variables ================================
+
+#define PROB_CLONING 1.0
 
 // Grid dimensions and positions
 int g_grid_width = 0;
@@ -40,17 +44,28 @@ static enum Direction opposite_direction(enum Direction dir) {
     }
 }
 
-static void send_agent_move(tw_lp *lp, int x, int y, enum Direction direction) {
+void send_agent_move(tw_lp *lp, int x, int y, enum Direction direction, double at) {
     // North, South, East, West
     int dx[] = {0, 0, 1, -1};
     int dy[] = {-1, 1, 0, 0};
 
-    tw_lpid target_gid = grid_index(x + dx[direction], y + dy[direction]);
-    tw_event *e = tw_event_new(target_gid, 1.0, lp);
+    double const offset = at - tw_now(lp);
+    tw_lpid const target_gid = g_tw_lp_offset + grid_index(x + dx[direction], y + dy[direction]);
+
+    tw_event *e = tw_event_new(target_gid, offset, lp);
     struct SearchMessage *msg = tw_event_data(e);
     msg->type = MESSAGE_TYPE_agent_move;
     msg->sender = lp->gid;
     tw_event_send(e);
+}
+
+static void send_agent_move_cloning(tw_lp *lp, int x, int y, enum Direction option1, enum Direction option2) {
+    director_store_decision(x, y, option1, option2, tw_now(lp));
+    tw_trigger_gvt_hook_now(lp);
+}
+
+static void send_agent_move_cloning_rev(tw_lp *lp) {
+    tw_trigger_gvt_hook_now_rev(lp);
 }
 
 static void send_cell_unavailable(tw_lp *lp, int x, int y, enum Direction direction) {
@@ -58,7 +73,7 @@ static void send_cell_unavailable(tw_lp *lp, int x, int y, enum Direction direct
     int dx[] = {0, 0, 1, -1};
     int dy[] = {-1, 1, 0, 0};
 
-    tw_lpid target_gid = grid_index(x + dx[direction], y + dy[direction]);
+    tw_lpid const target_gid = g_tw_lp_offset + grid_index(x + dx[direction], y + dy[direction]);
     tw_event *e = tw_event_new(target_gid, 0.5, lp);
     struct SearchMessage *msg = tw_event_data(e);
     msg->type = MESSAGE_TYPE_cell_unavailable;
@@ -76,8 +91,8 @@ void search_lp_init(struct SearchCellState *state, tw_lp *lp) {
         return;
     }
 
-    state->y = lp->gid / g_grid_width;
-    state->x = lp->gid % g_grid_width;
+    state->y = lp->id / g_grid_width;
+    state->x = lp->id % g_grid_width;
     state->cell_type = g_initial_grid[grid_index(state->x, state->y)];
     state->was_visited = false;
     state->exit_dir = DIR_NONE;
@@ -128,17 +143,36 @@ void search_lp_event_handler(struct SearchCellState *state, tw_bf *bf, struct Se
                 }
             }
 
-            if (num_moves > 0) {
-                bf->c1 = 1;
-                // Pick random direction
-                int choice = tw_rand_integer(lp->rng, 0, num_moves - 1);
-                enum Direction dir = available_moves[choice];
-
+            if (num_moves == 1) {
+                // Only one choice - no random number needed
+                enum Direction dir = available_moves[0];
                 state->exit_dir = dir;
 
                 // Send agent to next cell
-                send_agent_move(lp, state->x, state->y, dir);
+                send_agent_move(lp, state->x, state->y, dir, tw_now(lp) + 1.0);
                 // Informing cell is no longer available
+                send_cell_unavailable(lp, state->x, state->y, dir);
+            } else if (num_moves > 1) {
+                bf->c1 = 1;
+                // Pick random direction from multiple options
+                int const choice = tw_rand_integer(lp->rng, 0, num_moves - 1);
+                enum Direction const dir = available_moves[choice];
+                state->exit_dir = dir;
+
+                double const p = tw_rand_unif(lp->rng);
+                if (p < PROB_CLONING) {
+                    bf->c4 = 1;
+
+                    int choice_2nd = tw_rand_integer(lp->rng, 0, num_moves - 2);
+                    if (choice <= choice_2nd) { choice_2nd += 1; }
+                    enum Direction const dir_2nd = available_moves[choice_2nd];
+
+                    send_agent_move_cloning(lp, state->x, state->y, dir, dir_2nd);
+                } else {
+                    send_agent_move(lp, state->x, state->y, dir, tw_now(lp) + 1.0);
+                }
+
+                // Telling neighbors, this cell is no longer available
                 for (int i = 0; i < num_moves; i++) {
                     send_cell_unavailable(lp, state->x, state->y, available_moves[i]);
                 }
@@ -165,6 +199,11 @@ void search_lp_event_rev_handler(struct SearchCellState *state, tw_bf *bf, struc
             state->exit_dir = DIR_NONE;
             if (bf->c1) {
                 tw_rand_reverse_unif(lp->rng);
+                tw_rand_reverse_unif(lp->rng);
+                if (bf->c4) {
+                    tw_rand_reverse_unif(lp->rng);
+                    send_agent_move_cloning_rev(lp);
+                }
             }
             break;
         case MESSAGE_TYPE_cell_unavailable:

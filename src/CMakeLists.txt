@@ -30,6 +30,7 @@ add_library(search_lib
   state.c
   mapping.c
   utils.c
+  director.c
 )
 
 # Compiling ROSS search model

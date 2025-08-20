@@ -86,7 +86,7 @@ The simulation will create a `search-results.txt` file showing:
 ```
 Search Algorithm Results
 Grid size: 9x7
-Start: (1,1), Goal: (6,5)
+Start: (1,1), Goal: (7,5)
 Goal reached: YES
 
 Grid visualization:

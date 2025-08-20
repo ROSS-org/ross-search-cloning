@@ -21,12 +21,12 @@ The project supports two visualization modes for displaying the agent's path:
 
 #### Line Drawing Mode (Default)
 ```
-┌ ─ ─ ┐ ┌ ─ ─ ┐ . . . .
-│ S ┐ │ └ ─ ┐ │ . . . .
-│ ┌ ┘ └ ┐ . │ │ . . . .
-│ │ . . │ ┌ ┘ │ . . . .
-└ ┘ . ┌ ┘ │ X │ . . . .
-. . . └ ─ ┘ └ ┘ . . . .
+┌─────┐ ┌─────┐ . . . .
+│ S─┐ │ └───┐ │ . . . .
+│ ┌─┘ └─┐ . │ │ . . . .
+│ │ . . │ ┌─┘ │ . . . .
+└─┘ . ┌─┘ │ X │ . . . .
+. . . └───┘ └─┘ . . . .
 . . . . . . . . . . . g
 ```
 - Uses Unicode box-drawing characters (┌┐└┘│─)
@@ -98,7 +98,7 @@ path-to/bin/search --grid-map=path-to/example-grids/7x9-v1.txt
 ```
 
 ### Output
-Results are written to `search-results.txt`:
+Results are written to `search-results-pe=0.txt`:
 ```
 Search Algorithm Results
 Grid size: 9x7
@@ -211,6 +211,7 @@ mkdir test && cd test
 path-to/bin/search --grid-map=path-to/example-grids/7x9-v1.txt
 path-to/bin/search --grid-map=path-to/example-grids/12x8-empty.txt
 path-to/bin/search --grid-map=path-to/example-grids/7x9-impossible.txt
+mpirun --map-by :OVERSUBSCRIBE -np 100 path-to/bin/search --synch=3 --grid-map=path-to/example-grids/7x9-v1.txt
 ```
 
 ### Contributing

@@ -1,6 +1,7 @@
 #include "driver.h"
 #include "state.h"
 #include "mapping.h"
+#include "director.h"
 #include <search_config.h>
 
 /** Defining LP types.
@@ -60,6 +61,13 @@ int main(int argc, char *argv[]) {
         printf("Search algorithm git version: " MODEL_VERSION "\n");
     }
 
+    // Initialize director module for decision tracking
+    director_init();
+
+    // Set up GVT hook for decision tracking
+    g_tw_gvt_hook = clone_director_gvt_hook;
+    tw_trigger_gvt_hook_when_model_calls();
+
     // Calculate number of LPs needed (one per grid cell)
     int total_lps = g_grid_width * g_grid_height;
 
@@ -82,6 +90,7 @@ int main(int argc, char *argv[]) {
 
     // Clean up
     driver_finalize();
+    director_finalize();
     tw_end();
 
     return 0;
