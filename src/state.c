@@ -82,6 +82,73 @@ static void send_cell_unavailable(tw_lp *lp, int x, int y, enum Direction direct
     tw_event_send(e);
 }
 
+// ================================= Message handlers ================================
+
+static void handle_agent_move(struct SearchCellState *state, tw_bf *bf, struct SearchMessage *msg, tw_lp *lp) {
+    // Agent arrives at this cell
+    state->was_visited = true;
+
+    // If this is the goal, we're done!
+    if (state->cell_type == CELL_GOAL) {
+        bf->c0 = 1;
+        return;
+    }
+
+    // Try to move to next cell
+    enum Direction available_moves[4];
+    int num_moves = 0;
+
+    for (int i = 0; i < 4; i++) {
+        if (state->available_dirs[i]) {
+            available_moves[num_moves++] = i;
+        }
+    }
+
+    if (num_moves == 1) {
+        // Only one choice - no random number needed
+        enum Direction dir = available_moves[0];
+        state->exit_dir = dir;
+
+        // Send agent to next cell
+        send_agent_move(lp, state->x, state->y, dir, tw_now(lp) + 1.0);
+        // Informing cell is no longer available
+        send_cell_unavailable(lp, state->x, state->y, dir);
+    } else if (num_moves > 1) {
+        bf->c1 = 1;
+        // Pick random direction from multiple options
+        int const choice = tw_rand_integer(lp->rng, 0, num_moves - 1);
+        enum Direction const dir = available_moves[choice];
+        state->exit_dir = dir;
+
+        double const p = tw_rand_unif(lp->rng);
+        if (p < PROB_CLONING) {
+            bf->c4 = 1;
+
+            int choice_2nd = tw_rand_integer(lp->rng, 0, num_moves - 2);
+            if (choice <= choice_2nd) { choice_2nd += 1; }
+            enum Direction const dir_2nd = available_moves[choice_2nd];
+
+            send_agent_move_cloning(lp, state->x, state->y, dir, dir_2nd);
+        } else {
+            send_agent_move(lp, state->x, state->y, dir, tw_now(lp) + 1.0);
+        }
+
+        // Telling neighbors, this cell is no longer available
+        for (int i = 0; i < num_moves; i++) {
+            send_cell_unavailable(lp, state->x, state->y, available_moves[i]);
+        }
+    } else {
+        bf->c2 = 1;
+        // No moves available - agent is stuck
+        state->exit_dir = DIR_NONE;
+    }
+}
+
+static void handle_cell_unavailable(struct SearchCellState *state, tw_bf *bf, struct SearchMessage *msg, tw_lp *lp) {
+    bf->c3 = state->available_dirs[msg->from_dir];
+    state->available_dirs[msg->from_dir] = false;
+}
+
 // ================================= ROSS LP functions ===============================
 
 void search_lp_init(struct SearchCellState *state, tw_lp *lp) {
@@ -124,71 +191,14 @@ void search_lp_event_handler(struct SearchCellState *state, tw_bf *bf, struct Se
     memset(bf, 0, sizeof(*bf));
     switch (msg->type) {
         case MESSAGE_TYPE_agent_move:
-            // Agent arrives at this cell
-            state->was_visited = true;
-
-            // If this is the goal, we're done!
-            if (state->cell_type == CELL_GOAL) {
-                bf->c0 = 1;
-                return;
-            }
-
-            // Try to move to next cell
-            enum Direction available_moves[4];
-            int num_moves = 0;
-
-            for (int i = 0; i < 4; i++) {
-                if (state->available_dirs[i]) {
-                    available_moves[num_moves++] = i;
-                }
-            }
-
-            if (num_moves == 1) {
-                // Only one choice - no random number needed
-                enum Direction dir = available_moves[0];
-                state->exit_dir = dir;
-
-                // Send agent to next cell
-                send_agent_move(lp, state->x, state->y, dir, tw_now(lp) + 1.0);
-                // Informing cell is no longer available
-                send_cell_unavailable(lp, state->x, state->y, dir);
-            } else if (num_moves > 1) {
-                bf->c1 = 1;
-                // Pick random direction from multiple options
-                int const choice = tw_rand_integer(lp->rng, 0, num_moves - 1);
-                enum Direction const dir = available_moves[choice];
-                state->exit_dir = dir;
-
-                double const p = tw_rand_unif(lp->rng);
-                if (p < PROB_CLONING) {
-                    bf->c4 = 1;
-
-                    int choice_2nd = tw_rand_integer(lp->rng, 0, num_moves - 2);
-                    if (choice <= choice_2nd) { choice_2nd += 1; }
-                    enum Direction const dir_2nd = available_moves[choice_2nd];
-
-                    send_agent_move_cloning(lp, state->x, state->y, dir, dir_2nd);
-                } else {
-                    send_agent_move(lp, state->x, state->y, dir, tw_now(lp) + 1.0);
-                }
-
-                // Telling neighbors, this cell is no longer available
-                for (int i = 0; i < num_moves; i++) {
-                    send_cell_unavailable(lp, state->x, state->y, available_moves[i]);
-                }
-            } else {
-                bf->c2 = 1;
-                // No moves available - agent is stuck
-                state->exit_dir = DIR_NONE;
-            }
+            handle_agent_move(state, bf, msg, lp);
             break;
-
         case MESSAGE_TYPE_cell_unavailable:
-            bf->c3 = state->available_dirs[msg->from_dir];
-            state->available_dirs[msg->from_dir] = false;
+            handle_cell_unavailable(state, bf, msg, lp);
             break;
     }
 
+    assert_valid_SearchCellState(state);
     assert_valid_SearchMessage(msg);
 }
 
@@ -210,6 +220,7 @@ void search_lp_event_rev_handler(struct SearchCellState *state, tw_bf *bf, struc
             state->available_dirs[msg->from_dir] = bf->c3;
             break;
     }
+    assert_valid_SearchCellState(state);
 }
 
 void search_lp_event_commit(struct SearchCellState *state, tw_bf *bf, struct SearchMessage *msg, tw_lp *lp) {
