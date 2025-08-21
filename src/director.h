@@ -16,7 +16,7 @@ void clone_director_gvt_hook(tw_pe *pe, bool past_end_time);
 void director_init(void);
 
 /** Store decision information for later printing via GVT hook */
-void director_store_decision(int x, int y, enum Direction chosen_dir, enum Direction second_dir, tw_stime timestamp);
+void director_store_decision(int x, int y, enum DIRECTION chosen_dir, enum DIRECTION second_dir, tw_stime timestamp);
 
 /** Cleanup the director module */
 void director_finalize(void);

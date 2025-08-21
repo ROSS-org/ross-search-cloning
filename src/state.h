@@ -16,20 +16,20 @@
 // ================================ Enums ===================================
 
 /** Cell types in the search grid */
-enum CellType {
-  CELL_FREE = 0,     /**< Free space, agent can move here */
-  CELL_OBSTACLE = 1, /**< Obstacle, agent cannot move here */
-  CELL_START = 2,    /**< Starting position */
-  CELL_GOAL = 3      /**< Goal position */
+enum CELL_TYPE {
+  CELL_TYPE_free = 0,     /**< Free space, agent can move here */
+  CELL_TYPE_obstacle = 1, /**< Obstacle, agent cannot move here */
+  CELL_TYPE_start = 2,    /**< Starting position */
+  CELL_TYPE_goal = 3      /**< Goal position */
 };
 
 /** Direction enumeration */
-enum Direction {
-  DIR_NORTH = 0,  /**< North (up) */
-  DIR_SOUTH = 1,  /**< South (down) */
-  DIR_EAST = 2,   /**< East (right) */
-  DIR_WEST = 3,   /**< West (left) */
-  DIR_NONE = 4    /**< No direction / not set */
+enum DIRECTION {
+  DIRECTION_north = 0,  /**< North (up) */
+  DIRECTION_south = 1,  /**< South (down) */
+  DIRECTION_east = 2,   /**< East (right) */
+  DIRECTION_west = 3,   /**< West (left) */
+  DIRECTION_none = 4    /**< No direction / not set */
 };
 
 // ================================ Global variables ===============================
@@ -41,9 +41,9 @@ extern int g_start_x, g_start_y;
 extern int g_goal_x, g_goal_y;
 
 /** Global grid arrays for initial state and final results (shared per PE) */
-extern enum CellType *g_initial_grid;  /**< Initial grid layout (read at init) */
+extern enum CELL_TYPE *g_initial_grid;  /**< Initial grid layout (read at init) */
 extern bool *g_visited_grid;           /**< Final: which cells were visited (written at finalize) */
-extern enum Direction *g_exit_dirs;    /**< Final: exit direction from each cell (written at finalize) */
+extern enum DIRECTION *g_exit_dirs;    /**< Final: exit direction from each cell (written at finalize) */
 
 // ================================ State struct ===============================
 
@@ -52,10 +52,10 @@ extern enum Direction *g_exit_dirs;    /**< Final: exit direction from each cell
  */
 struct SearchCellState {
   int x, y;                    /**< Cell coordinates */
-  enum CellType cell_type;     /**< Type of this cell */
+  enum CELL_TYPE cell_type;     /**< Type of this cell */
   bool available_dirs[4];      /**< Which directions are available (N,S,E,W) */
   bool was_visited;            /**< Whether agent has visited this cell */
-  enum Direction exit_dir;     /**< Direction agent exited (for path reconstruction) */
+  enum DIRECTION exit_dir;     /**< Direction agent exited (for path reconstruction) */
 };
 
 /** Helper functions for global grid access */
@@ -70,16 +70,16 @@ static inline bool is_valid_position(int x, int y) {
 static inline bool is_valid_SearchCellState(struct SearchCellState *s) {
     return s->x >= 0 && s->x < g_grid_width &&
            s->y >= 0 && s->y < g_grid_height &&
-           s->cell_type >= CELL_FREE && s->cell_type <= CELL_GOAL &&
-           s->exit_dir >= DIR_NORTH && s->exit_dir <= DIR_NONE;
+           s->cell_type >= CELL_TYPE_free && s->cell_type <= CELL_TYPE_goal &&
+           s->exit_dir >= DIRECTION_north && s->exit_dir <= DIRECTION_none;
 }
 
 static inline void assert_valid_SearchCellState(struct SearchCellState *s) {
 #ifndef NDEBUG
     assert(s->x >= 0 && s->x < g_grid_width);
     assert(s->y >= 0 && s->y < g_grid_height);
-    assert(s->cell_type >= CELL_FREE && s->cell_type <= CELL_GOAL);
-    assert(s->exit_dir >= DIR_NORTH && s->exit_dir <= DIR_NONE);
+    assert(s->cell_type >= CELL_TYPE_free && s->cell_type <= CELL_TYPE_goal);
+    assert(s->exit_dir >= DIRECTION_north && s->exit_dir <= DIRECTION_none);
 #endif
 }
 
@@ -98,7 +98,7 @@ struct SearchMessage {
 
   union {
     struct { // message type = cell_unavailable
-      enum Direction from_dir;     /**< Direction the notification came from */
+      enum DIRECTION from_dir;     /**< Direction the notification came from */
     };
   };
 };
@@ -108,7 +108,7 @@ static inline bool is_valid_SearchMessage(struct SearchMessage *msg) {
         return false;
     }
     if (msg->type == MESSAGE_TYPE_agent_move) {
-        return msg->from_dir >= DIR_NORTH && msg->from_dir <= DIR_NONE;
+        return msg->from_dir >= DIRECTION_north && msg->from_dir <= DIRECTION_none;
     }
     return true;
 }
@@ -117,7 +117,7 @@ static inline void assert_valid_SearchMessage(struct SearchMessage *msg) {
 #ifndef NDEBUG
     assert(msg->type == MESSAGE_TYPE_agent_move || msg->type == MESSAGE_TYPE_cell_unavailable);
     if (msg->type == MESSAGE_TYPE_agent_move) {
-        assert(msg->from_dir >= DIR_NORTH && msg->from_dir <= DIR_NONE);
+        assert(msg->from_dir >= DIRECTION_north && msg->from_dir <= DIRECTION_none);
     }
 #endif
 }
@@ -152,6 +152,6 @@ void search_lp_event_commit(
 void search_lp_final(struct SearchCellState *s, struct tw_lp *lp);
 
 /** Exporting function to the director to schedule agent movement, to choose a path */
-void send_agent_move(tw_lp *lp, int x, int y, enum Direction direction, double at);
+void send_agent_move(tw_lp *lp, int x, int y, enum DIRECTION direction, double at);
 
 #endif /* SEARCH_STATE_H */

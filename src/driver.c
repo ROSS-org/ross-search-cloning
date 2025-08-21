@@ -46,9 +46,9 @@ static int parse_grid_file(const char *filename) {
 
     // Allocate global grids
     int total_cells = g_grid_width * g_grid_height;
-    g_initial_grid = calloc(total_cells, sizeof(enum CellType));
+    g_initial_grid = calloc(total_cells, sizeof(enum CELL_TYPE));
     g_visited_grid = calloc(total_cells, sizeof(bool));
-    g_exit_dirs = calloc(total_cells, sizeof(enum Direction));
+    g_exit_dirs = calloc(total_cells, sizeof(enum DIRECTION));
 
     if (!g_initial_grid || !g_visited_grid || !g_exit_dirs) {
         fprintf(stderr, "Error: Failed to allocate grid memory\n");
@@ -58,7 +58,7 @@ static int parse_grid_file(const char *filename) {
 
     // Initialize exit directions to DIR_NONE
     for (int i = 0; i < total_cells; i++) {
-        g_exit_dirs[i] = DIR_NONE;
+        g_exit_dirs[i] = DIRECTION_none;
     }
 
     // Parse grid content
@@ -70,17 +70,17 @@ static int parse_grid_file(const char *filename) {
         for (char *p = line; *p && x < g_grid_width; p++) {
             if (*p == ' ' || *p == '\t') continue;
 
-            enum CellType cell_type = CELL_FREE;
+            enum CELL_TYPE cell_type = CELL_TYPE_free;
             switch (*p) {
-                case '.': cell_type = CELL_FREE; break;
-                case '#': cell_type = CELL_OBSTACLE; break;
+                case '.': cell_type = CELL_TYPE_free; break;
+                case '#': cell_type = CELL_TYPE_obstacle; break;
                 case 'S':
-                    cell_type = CELL_START;
+                    cell_type = CELL_TYPE_start;
                     g_start_x = x;
                     g_start_y = y;
                     break;
                 case 'G':
-                    cell_type = CELL_GOAL;
+                    cell_type = CELL_TYPE_goal;
                     g_goal_x = x;
                     g_goal_y = y;
                     break;
@@ -147,16 +147,16 @@ static const char* line_chars[5][5] = {
     /*?*/ {"?", "?", "?", "?", "?"}
 };
 
-static enum Direction get_entry_direction(int x, int y) {
+static enum DIRECTION get_entry_direction(int x, int y) {
     if (is_valid_position(x, y-1) && g_visited_grid[grid_index(x, y-1)] &&
-        g_exit_dirs[grid_index(x, y-1)] == DIR_SOUTH) return DIR_NORTH;
+        g_exit_dirs[grid_index(x, y-1)] == DIRECTION_south) return DIRECTION_north;
     if (is_valid_position(x, y+1) && g_visited_grid[grid_index(x, y+1)] &&
-        g_exit_dirs[grid_index(x, y+1)] == DIR_NORTH) return DIR_SOUTH;
+        g_exit_dirs[grid_index(x, y+1)] == DIRECTION_north) return DIRECTION_south;
     if (is_valid_position(x-1, y) && g_visited_grid[grid_index(x-1, y)] &&
-        g_exit_dirs[grid_index(x-1, y)] == DIR_EAST) return DIR_WEST;
+        g_exit_dirs[grid_index(x-1, y)] == DIRECTION_east) return DIRECTION_west;
     if (is_valid_position(x+1, y) && g_visited_grid[grid_index(x+1, y)] &&
-        g_exit_dirs[grid_index(x+1, y)] == DIR_WEST) return DIR_EAST;
-    return DIR_NONE;
+        g_exit_dirs[grid_index(x+1, y)] == DIRECTION_west) return DIRECTION_east;
+    return DIRECTION_none;
 }
 
 static const bool connects_to_the_right[5][5] = {
@@ -190,11 +190,11 @@ void write_final_output(void) {
     for (int y = 0; y < g_grid_height; y++) {
         for (int x = 0; x < g_grid_width; x++) {
             int idx = grid_index(x, y);
-            enum CellType cell_type = g_initial_grid[idx];
+            enum CELL_TYPE cell_type = g_initial_grid[idx];
             bool visited = g_visited_grid[idx];
-            enum Direction exit_dir = g_exit_dirs[idx];
+            enum DIRECTION exit_dir = g_exit_dirs[idx];
 
-            if (cell_type == CELL_OBSTACLE) {
+            if (cell_type == CELL_TYPE_obstacle) {
                 fprintf(fp, "# ");
             } else if (x == g_start_x && y == g_start_y) {
                 fprintf(fp, "S ");
@@ -202,7 +202,7 @@ void write_final_output(void) {
                 fprintf(fp, "%c ", visited ? 'G' : 'g');  // Capital if reached
             } else if (visited) {
 #ifndef ASCII_ONLY_VISUALIZATION
-                enum Direction entry_dir = get_entry_direction(x, y);
+                enum DIRECTION entry_dir = get_entry_direction(x, y);
                 const char* line_char = line_chars[entry_dir][exit_dir];
                 if (connects_to_the_right[entry_dir][exit_dir]) {
                     fprintf(fp, "%s─", line_char);
@@ -212,10 +212,10 @@ void write_final_output(void) {
 #else
                 char c = '.';
                 switch (exit_dir) {
-                    case DIR_NORTH: c = '^'; break;
-                    case DIR_SOUTH: c = 'v'; break;
-                    case DIR_EAST:  c = '>'; break;
-                    case DIR_WEST:  c = '<'; break;
+                    case DIRECTION_north: c = '^'; break;
+                    case DIRECTION_south: c = 'v'; break;
+                    case DIRECTION_east:  c = '>'; break;
+                    case DIRECTION_west:  c = '<'; break;
                     default: c = 'X'; break;  // Stuck
                 }
                 fprintf(fp, "%c ", c);

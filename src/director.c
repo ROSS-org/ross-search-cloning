@@ -13,19 +13,24 @@ static inline void synch_lp_to_gvt(tw_pe *pe, tw_lp *grid_lp, tw_event_sig *gvt_
 /** Structure to track decision information for GVT hook */
 struct DecisionInfo {
     int x, y;                    /**< Position where decision was made */
-    enum Direction chosen_dir;   /**< First direction chosen */
-    enum Direction second_dir;   /**< Second direction option */
+    enum DIRECTION chosen_dir;   /**< First direction chosen */
+    enum DIRECTION second_dir;   /**< Second direction option */
     tw_stime timestamp;          /**< When the decision was made */
+};
+
+enum OPTION {
+    OPTION_first_branch = 0,
+    OPTION_second_branch
 };
 
 // Static storage for current decision information
 static struct DecisionInfo current_decision;
-static bool waiting_for_decision = false;
+static bool did_this_pe_trigger = false;
 
 void director_init(void) {
 }
 
-void director_store_decision(int x, int y, enum Direction chosen_dir, enum Direction second_dir, tw_stime timestamp) {
+void director_store_decision(int x, int y, enum DIRECTION chosen_dir, enum DIRECTION second_dir, tw_stime timestamp) {
     // Store the decision
     current_decision.x = x;
     current_decision.y = y;
@@ -33,13 +38,13 @@ void director_store_decision(int x, int y, enum Direction chosen_dir, enum Direc
     current_decision.second_dir = second_dir;
     current_decision.timestamp = timestamp;
 
-    waiting_for_decision = true;
+    did_this_pe_trigger = true;
 }
 
 void clone_director_gvt_hook(tw_pe *pe, bool past_end_time) {
     (void)past_end_time; // unused parameter
 
-    if (!waiting_for_decision) {
+    if (!did_this_pe_trigger) {
         return;
     }
 
@@ -61,7 +66,7 @@ void clone_director_gvt_hook(tw_pe *pe, bool past_end_time) {
 
     send_agent_move(grid_lp, current_decision.x, current_decision.y, current_decision.chosen_dir, current_decision.timestamp + 1.0);
 
-    waiting_for_decision = false;
+    did_this_pe_trigger = false;
 }
 
 void director_finalize(void) {

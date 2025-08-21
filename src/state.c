@@ -15,9 +15,9 @@ int g_start_x = -1, g_start_y = -1;
 int g_goal_x = -1, g_goal_y = -1;
 
 // Global grid arrays
-enum CellType *g_initial_grid = NULL;
+enum CELL_TYPE *g_initial_grid = NULL;
 bool *g_visited_grid = NULL;
-enum Direction *g_exit_dirs = NULL;
+enum DIRECTION *g_exit_dirs = NULL;
 
 // ================================= Helper functions ================================
 
@@ -30,21 +30,21 @@ static void get_neighbors(int x, int y, int neighbors[4][2], bool valid[4]) {
         neighbors[i][0] = x + dx[i];
         neighbors[i][1] = y + dy[i];
         valid[i] = is_valid_position(neighbors[i][0], neighbors[i][1]) &&
-                   g_initial_grid[grid_index(neighbors[i][0], neighbors[i][1])] != CELL_OBSTACLE;
+                   g_initial_grid[grid_index(neighbors[i][0], neighbors[i][1])] != CELL_TYPE_obstacle;
     }
 }
 
-static enum Direction opposite_direction(enum Direction dir) {
+static enum DIRECTION opposite_direction(enum DIRECTION dir) {
     switch (dir) {
-        case DIR_NORTH: return DIR_SOUTH;
-        case DIR_SOUTH: return DIR_NORTH;
-        case DIR_EAST: return DIR_WEST;
-        case DIR_WEST: return DIR_EAST;
-        default: return DIR_NONE;
+        case DIRECTION_north: return DIRECTION_south;
+        case DIRECTION_south: return DIRECTION_north;
+        case DIRECTION_east:  return DIRECTION_west;
+        case DIRECTION_west:  return DIRECTION_east;
+        default: return DIRECTION_none;
     }
 }
 
-void send_agent_move(tw_lp *lp, int x, int y, enum Direction direction, double at) {
+void send_agent_move(tw_lp *lp, int x, int y, enum DIRECTION direction, double at) {
     // North, South, East, West
     int dx[] = {0, 0, 1, -1};
     int dy[] = {-1, 1, 0, 0};
@@ -59,7 +59,7 @@ void send_agent_move(tw_lp *lp, int x, int y, enum Direction direction, double a
     tw_event_send(e);
 }
 
-static void send_agent_move_cloning(tw_lp *lp, int x, int y, enum Direction option1, enum Direction option2) {
+static void send_agent_move_cloning(tw_lp *lp, int x, int y, enum DIRECTION option1, enum DIRECTION option2) {
     director_store_decision(x, y, option1, option2, tw_now(lp));
     tw_trigger_gvt_hook_now(lp);
 }
@@ -68,7 +68,7 @@ static void send_agent_move_cloning_rev(tw_lp *lp) {
     tw_trigger_gvt_hook_now_rev(lp);
 }
 
-static void send_cell_unavailable(tw_lp *lp, int x, int y, enum Direction direction) {
+static void send_cell_unavailable(tw_lp *lp, int x, int y, enum DIRECTION direction) {
     // North, South, East, West
     int dx[] = {0, 0, 1, -1};
     int dy[] = {-1, 1, 0, 0};
@@ -89,13 +89,13 @@ static void handle_agent_move(struct SearchCellState *state, tw_bf *bf, struct S
     state->was_visited = true;
 
     // If this is the goal, we're done!
-    if (state->cell_type == CELL_GOAL) {
+    if (state->cell_type == CELL_TYPE_goal) {
         bf->c0 = 1;
         return;
     }
 
     // Try to move to next cell
-    enum Direction available_moves[4];
+    enum DIRECTION available_moves[4];
     int num_moves = 0;
 
     for (int i = 0; i < 4; i++) {
@@ -106,7 +106,7 @@ static void handle_agent_move(struct SearchCellState *state, tw_bf *bf, struct S
 
     if (num_moves == 1) {
         // Only one choice - no random number needed
-        enum Direction dir = available_moves[0];
+        enum DIRECTION dir = available_moves[0];
         state->exit_dir = dir;
 
         // Send agent to next cell
@@ -117,7 +117,7 @@ static void handle_agent_move(struct SearchCellState *state, tw_bf *bf, struct S
         bf->c1 = 1;
         // Pick random direction from multiple options
         int const choice = tw_rand_integer(lp->rng, 0, num_moves - 1);
-        enum Direction const dir = available_moves[choice];
+        enum DIRECTION const dir = available_moves[choice];
         state->exit_dir = dir;
 
         double const p = tw_rand_unif(lp->rng);
@@ -126,7 +126,7 @@ static void handle_agent_move(struct SearchCellState *state, tw_bf *bf, struct S
 
             int choice_2nd = tw_rand_integer(lp->rng, 0, num_moves - 2);
             if (choice <= choice_2nd) { choice_2nd += 1; }
-            enum Direction const dir_2nd = available_moves[choice_2nd];
+            enum DIRECTION const dir_2nd = available_moves[choice_2nd];
 
             send_agent_move_cloning(lp, state->x, state->y, dir, dir_2nd);
         } else {
@@ -140,7 +140,7 @@ static void handle_agent_move(struct SearchCellState *state, tw_bf *bf, struct S
     } else {
         bf->c2 = 1;
         // No moves available - agent is stuck
-        state->exit_dir = DIR_NONE;
+        state->exit_dir = DIRECTION_none;
     }
 }
 
@@ -162,7 +162,7 @@ void search_lp_init(struct SearchCellState *state, tw_lp *lp) {
     state->x = lp->id % g_grid_width;
     state->cell_type = g_initial_grid[grid_index(state->x, state->y)];
     state->was_visited = false;
-    state->exit_dir = DIR_NONE;
+    state->exit_dir = DIRECTION_none;
 
     // Initialize available directions based on neighbors
     int neighbors[4][2];
@@ -180,7 +180,7 @@ void search_lp_init(struct SearchCellState *state, tw_lp *lp) {
         struct SearchMessage *msg = tw_event_data(e);
         msg->type = MESSAGE_TYPE_agent_move;
         msg->sender = lp->gid;
-        msg->from_dir = DIR_NONE;
+        msg->from_dir = DIRECTION_none;
         tw_event_send(e);
     }
 
@@ -206,7 +206,7 @@ void search_lp_event_rev_handler(struct SearchCellState *state, tw_bf *bf, struc
     switch (msg->type) {
         case MESSAGE_TYPE_agent_move:
             state->was_visited = false;
-            state->exit_dir = DIR_NONE;
+            state->exit_dir = DIRECTION_none;
             if (bf->c1) {
                 tw_rand_reverse_unif(lp->rng);
                 tw_rand_reverse_unif(lp->rng);
