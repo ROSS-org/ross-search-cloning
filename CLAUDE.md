@@ -13,6 +13,15 @@ This simulation models an agent that:
 
 The implementation uses ROSS (Rensselaer Optimistic Simulation System) where each grid cell is a separate **Logical Process (LP)**, enabling parallel execution.
 
+## Dynamic Branching Simulation
+
+This project implements cloning PDES implementation to explore alternative decision paths in parallel. When the agent faces a choice between multiple directions, the simulation can clone itself to a new Processing Element (PE) to explore both options simultaneously.
+
+### Key Capabilities:
+- **PE Expansion**: Starts with PE 0, dynamically clones models to empty PEs as decisions arise
+- **Complete State Cloning**: Transfers all LP states and pending events between PEs
+- **Branching Decisions**: Each PE explores different decision branches in parallel. All PEs are synchronized
+
 ## Features
 
 ### Dual Visualization System
@@ -54,6 +63,7 @@ ross-search-clone/
 │   ├── search.main.c      # Main ROSS application entry point
 │   ├── driver.{c,h}       # Grid parsing & visualization output
 │   ├── state.{c,h}        # LP state management & event handlers
+│   ├── director.{c,h}     # Branching simulation coordinator & PE cloning
 │   ├── mapping.{c,h}      # LP-to-PE mapping functions
 │   └── utils.{c,h}        # Utility functions
 ├── example-grids/         # Sample grid map files
@@ -94,20 +104,26 @@ cmake .. -DASCII_ONLY_VISUALIZATION=ON
 
 ### Basic Execution
 ```bash
+# Single PE execution
 path-to/bin/search --grid-map=path-to/example-grids/7x9-v1.txt
+
+# Multi-PE branching simulation
+mpirun -np 4 path-to/bin/search --synch=3 --grid-map=path-to/example-grids/7x9-v1.txt
 ```
 
 ### Output
-Results are written to `search-results-pe=0.txt`:
+Results are written to separate files per PE (e.g., `search-results-pe=0.txt`, `search-results-pe=1.txt`):
 ```
-Search Algorithm Results
+Search Results on PE 1
 Grid size: 9x7
 Start: (1,1), Goal: (7,5)
 Goal reached: YES/NO
 
 Grid visualization:
-[Visual representation of path taken]
+[Visual representation of path taken by this PE's branch]
 ```
+
+**Branching Simulation**: When run with multiple PEs, each PE explores different decision branches in parallel, potentially finding multiple solution paths or exploring different failure modes.
 
 ## Grid File Format
 
@@ -173,6 +189,24 @@ Grid files define the search environment:
 - **Forward**: Process events and update state
 - **Reverse**: Undo operations for rollback capability
 - **Commit**: Output final results and statistics
+
+## Branching Simulation System
+
+### Director Architecture
+The **Director** coordinates where to clone each model using ROSS's GVT hook:
+
+- **PE State Tracking**: Uses `MPI_Allgather` to maintain global view of PE states
+- **Decision Points**: PE asks to be cloned
+- **State Cloning**: Complete LP states and event queues transferred between PEs
+- **Synchronized Execution**: All PEs coordinate because we are running a parallel optimistic simulation
+
+### PE Allocation Process
+1. Simulation starts on PE 0 only
+2. When agent faces choice, PE requests cloning via GVT hook
+3. System finds first empty PE for destination
+4. Complete state transfer: LP data + pending events
+5. Both PEs continue with different decision branches
+6. Process repeats until all PEs utilized
 
 ## Algorithm Details
 

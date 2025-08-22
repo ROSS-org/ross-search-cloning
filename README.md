@@ -1,6 +1,6 @@
-# Search Algorithm in ROSS
+# Cloning model - Search Algorithm in ROSS
 
-This is a PDES model implementing a random search algorithm in [ROSS][], a (massively) parallel discrete event simulator. The model simulates an agent trying to find a goal in a grid world with obstacles by random exploration.
+This is a PDES model implementing a random search algorithm in [ROSS][], a (massively) parallel discrete event simulator. The model simulates an agent trying to find a goal in a grid world with obstacles by random exploration. When the agent encounters a decision to take, it asks to be cloned and both simulations are run in parallel.
 
 [ROSS]: https://github.com/ROSS-org/ROSS
 
@@ -31,9 +31,9 @@ The search algorithm works as follows:
 The following are the instructions to download and compile:
 
 ```bash
-git clone --recursive https://github.com/ross-org/search-ross
-mkdir search-ross/build
-cd search-ross/build
+git clone --recursive https://github.com/ross-org/ross-search-cloning
+mkdir ross-search-cloning/build
+cd ross-search-cloning/build
 cmake .. -DCMAKE_INSTALL_PREFIX="$(pwd -P)/"
 make install
 ```
@@ -53,25 +53,27 @@ Create a grid file with the following format:
 . S . . . # . . .
 . . . . . . . . .
 . . . . . # . # .
-. # . # # . . . .
+. # . # . . . . .
 . . . . . . . G #
 . . . # . . . . .
 ```
 
 ## Execution
 
-Example usage:
+### On 1 Core (1 PE)
+
+Example usage in one core (it will not clone itself):
 
 ```bash
 cd build
-src/search --grid-map=path/to/grid.txt
+bin/search --grid-map=path/to/grid.txt
 ```
 
-Required options:
-- `--grid-map=FILE`: Path to the grid file
+Options:
+- `--grid-map=FILE`: Path to the grid file (required)
 - `--end=TIME`: Simulation end time
 
-The simulation will create a `search-results.txt` file showing:
+The simulation will create a `search-results-pe=X.txt` file showing:
 - Whether the goal was reached
 - Grid visualization with path taken:
   - `S` = start position
@@ -81,10 +83,21 @@ The simulation will create a `search-results.txt` file showing:
   - `#` = obstacle
   - `.` = unvisited free space
 
+### On multiple Cores (PEs)
+
+```bash
+cd build
+mpirun -np 20 bin/search --synch=3 --grid-map=path/to/grid.txt
+```
+
+This will run the simulation in parallel in 20 PEs. It will start on ONE core, and every single time the model wants to take a decision, it can ask to be cloned and thus take two paths.
+
 ## Example Output
 
+The file `search-results-pe=X.txt` will contain the path that a particular simulation took:
+
 ```
-Search Algorithm Results
+Search Results on PE X
 Grid size: 9x7
 Start: (1,1), Goal: (7,5)
 Goal reached: YES
@@ -98,19 +111,6 @@ Grid visualization:
 . . . . . . └─G #
 . . . # . . . . .
 ```
-
-## Documentation
-
-To generate the documentation, install [doxygen][] and dot (included in [graphviz][]), and then run:
-
-```bash
-doxygen docs/Doxyfile
-```
-
-The documentation will be stored in `docs/html`.
-
-[doxygen]: https://www.doxygen.nl/
-[graphviz]: https://www.graphviz.org/
 
 ## Model Architecture
 
