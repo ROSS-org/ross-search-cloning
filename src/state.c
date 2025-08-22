@@ -5,7 +5,12 @@
 
 // ================================= Global variables ================================
 
-#define PROB_CLONING 1.0
+// If the probability of branching is 0, the simulation will never ask to be
+// forked and branch. If it is .5, then there is a 50% of probability that the
+// simulation will ask to be cloned (and the clone taking the other branch).
+// A 1.0 means that the simulation will always ask to be cloned when taking a
+// decision on a branch.
+#define PROB_OF_BRANCHING 1.0
 
 // Grid dimensions and positions
 int g_grid_width = 0;
@@ -124,7 +129,7 @@ static void handle_agent_move(struct SearchCellState *state, tw_bf *bf, struct S
         enum DIRECTION const dir = available_moves[choice];
 
         double const p = tw_rand_unif(lp->rng);
-        if (p < PROB_CLONING) {
+        if (p < PROB_OF_BRANCHING) {
             bf->c4 = 1;
 
             int choice_2nd = tw_rand_integer(lp->rng, 0, num_moves - 2);

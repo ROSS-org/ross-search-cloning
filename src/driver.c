@@ -1,4 +1,5 @@
 #include "driver.h"
+#include "ross-extern.h"
 #include "state.h"
 #include <stdbool.h>
 #include <ross.h>
@@ -180,7 +181,7 @@ void write_final_output(void) {
         return;
     }
 
-    fprintf(fp, "Search Algorithm Results\n");
+    fprintf(fp, "Search Results on PE %d\n", (int) g_tw_mynode);
     fprintf(fp, "Grid size: %dx%d\n", g_grid_width, g_grid_height);
     fprintf(fp, "Start: (%d,%d), Goal: (%d,%d)\n", g_start_x, g_start_y, g_goal_x, g_goal_y);
     fprintf(fp, "Goal reached: %s\n", g_visited_grid[grid_index(g_goal_x, g_goal_y)] ? "YES" : "NO");

@@ -34,9 +34,18 @@ enum OPTION {
     OPTION_second_branch
 };
 
+enum PE_STATE {
+    PE_EMPTY = 0,           // No simulation running
+    PE_BUSY = 1,            // Simulation running, no trigger
+    PE_REQUEST_CLONING = 2  // Simulation running, triggered hook
+};
+
 // Static storage for current decision information
 static struct DecisionInfo current_decision;
 static bool did_this_pe_trigger = false;
+
+// PE state tracking for dynamic allocation
+static enum PE_STATE my_pe_state = PE_EMPTY;
 
 // Generates a non-valid current decision position, because current_decision should never be used if did_this_pe_trigger == false
 static void clean_current_decision(void) {
@@ -51,6 +60,8 @@ static void clean_current_decision(void) {
 
 void director_init(void) {
     clean_current_decision();
+    // PE 0 starts busy (running simulation), others start empty
+    my_pe_state = (g_tw_mynode == 0) ? PE_BUSY : PE_EMPTY;
 }
 
 struct SerializableEvent {
@@ -158,7 +169,7 @@ static void clone_lp_states(tw_pe *pe, tw_peid source, tw_peid dest) {
         tw_lp *lp = g_tw_lp[local_lpid];
         struct SearchCellState *state = (struct SearchCellState *)lp->cur_state;
 
-        if (g_tw_mynode == 0) {
+        if (g_tw_mynode == source) {
             MPI_Isend(state, sizeof(struct SearchCellState), MPI_BYTE, dest,
                       0, MPI_COMM_ROSS, &requests[local_lpid]);
         } else {
@@ -227,6 +238,7 @@ void clone_branch_and_advance(tw_pe *pe, tw_peid source, tw_peid dest) {
 
     if (did_this_pe_trigger) {
         assert(source == g_tw_mynode);
+        assert_valid_DecisionInfo(&current_decision);
         MPI_Send(&current_decision, sizeof(struct DecisionInfo), MPI_BYTE, dest,
                  0, MPI_COMM_ROSS);
         advance_to_direction(pe, OPTION_first_branch);
@@ -243,20 +255,50 @@ void clone_director_gvt_hook(tw_pe *pe, bool past_end_time) {
     (void)past_end_time; // unused parameter
     tw_scheduler_rollback_and_cancel_events_pe(pe);
 
-    // For testing purposes, it will force cloning and branching only on the 4 GVT hook call, otherwise it will advance the simulation on the PE that triggered the call only
-    static int num_triggers = 0;
-    num_triggers++;
-    if (num_triggers != 4) {
-        if (did_this_pe_trigger) {
-            assert_valid_DecisionInfo(&current_decision);
-            advance_to_direction(pe, OPTION_first_branch);
-            did_this_pe_trigger = false;
-        }
-        return;
+    // Update my state based on whether I triggered this hook call
+    if (did_this_pe_trigger) {
+        my_pe_state = PE_REQUEST_CLONING;
     }
 
-    // TODO: figure out logic to determine source and destination PEs
-    clone_branch_and_advance(pe, 0, 1);
+    // Gather states from all PEs to get global view
+    int world_size = tw_nnodes();
+    enum PE_STATE all_pe_states[world_size];
+
+    MPI_Allgather(&my_pe_state, 1, MPI_INT, &all_pe_states, 1, MPI_INT, MPI_COMM_ROSS);
+
+    // Find source (requesting) and destination (empty) PEs
+    int source_pe = -1, dest_pe = -1;
+
+    for (int pe_id = 0; pe_id < world_size; pe_id++) {
+        if (all_pe_states[pe_id] == PE_REQUEST_CLONING) {
+            assert(source_pe == -1);
+            source_pe = pe_id;
+        }
+        if (all_pe_states[pe_id] == PE_EMPTY && dest_pe == -1) {
+            dest_pe = pe_id;  // First empty PE found
+        }
+    }
+
+    // Execute cloning if both source and destination found
+    if (source_pe != -1 && dest_pe != -1) {
+        if ((int)g_tw_mynode == source_pe) {
+            printf("Cloning from PE %d to PE %d\n", source_pe, dest_pe);
+        }
+        clone_branch_and_advance(pe, source_pe, dest_pe);
+
+        // Update states after successful cloning
+        if ((int)g_tw_mynode == source_pe || (int)g_tw_mynode == dest_pe) {
+            my_pe_state = PE_BUSY;
+        }
+    } else if (did_this_pe_trigger) {
+        // No empty PEs available, continue simulation normally on this PE
+        assert_valid_DecisionInfo(&current_decision);
+        advance_to_direction(pe, OPTION_first_branch);
+        my_pe_state = PE_BUSY;
+        //did_this_pe_trigger = false;
+    }
+
+    did_this_pe_trigger = false;
 }
 
 void director_finalize(void) {
