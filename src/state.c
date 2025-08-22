@@ -1,6 +1,5 @@
 #include "state.h"
 #include "director.h"
-#include "ross-kernel-inline.h"
 #include <stdio.h>
 #include <string.h>
 
@@ -49,6 +48,9 @@ void send_agent_move(tw_lp *lp, int x, int y, enum DIRECTION direction, double a
     int dx[] = {0, 0, 1, -1};
     int dy[] = {-1, 1, 0, 0};
 
+    struct SearchCellState *state = (struct SearchCellState *)lp->cur_state;
+    state->exit_dir = direction;
+
     double const offset = at - tw_now(lp);
     tw_lpid const target_gid = g_tw_lp_offset + grid_index(x + dx[direction], y + dy[direction]);
 
@@ -64,7 +66,8 @@ static void send_agent_move_cloning(tw_lp *lp, int x, int y, enum DIRECTION opti
     tw_trigger_gvt_hook_now(lp);
 }
 
-static void send_agent_move_cloning_rev(tw_lp *lp) {
+static void send_agent_move_cloning_rev(tw_lp *lp, int x, int y) {
+    director_store_decision_rev(x, y);
     tw_trigger_gvt_hook_now_rev(lp);
 }
 
@@ -85,6 +88,8 @@ static void send_cell_unavailable(tw_lp *lp, int x, int y, enum DIRECTION direct
 // ================================= Message handlers ================================
 
 static void handle_agent_move(struct SearchCellState *state, tw_bf *bf, struct SearchMessage *msg, tw_lp *lp) {
+    assert(!state->was_visited);
+
     // Agent arrives at this cell
     state->was_visited = true;
 
@@ -107,7 +112,6 @@ static void handle_agent_move(struct SearchCellState *state, tw_bf *bf, struct S
     if (num_moves == 1) {
         // Only one choice - no random number needed
         enum DIRECTION dir = available_moves[0];
-        state->exit_dir = dir;
 
         // Send agent to next cell
         send_agent_move(lp, state->x, state->y, dir, tw_now(lp) + 1.0);
@@ -118,7 +122,6 @@ static void handle_agent_move(struct SearchCellState *state, tw_bf *bf, struct S
         // Pick random direction from multiple options
         int const choice = tw_rand_integer(lp->rng, 0, num_moves - 1);
         enum DIRECTION const dir = available_moves[choice];
-        state->exit_dir = dir;
 
         double const p = tw_rand_unif(lp->rng);
         if (p < PROB_CLONING) {
@@ -174,7 +177,7 @@ void search_lp_init(struct SearchCellState *state, tw_lp *lp) {
     }
 
     // If this is the start cell, place the agent here
-    if (state->x == g_start_x && state->y == g_start_y) {
+    if (state->x == g_start_x && state->y == g_start_y && g_tw_mynode == 0) {
         // Schedule first move after a small delay
         tw_event *e = tw_event_new(lp->gid, 1.0, lp);
         struct SearchMessage *msg = tw_event_data(e);
@@ -212,7 +215,7 @@ void search_lp_event_rev_handler(struct SearchCellState *state, tw_bf *bf, struc
                 tw_rand_reverse_unif(lp->rng);
                 if (bf->c4) {
                     tw_rand_reverse_unif(lp->rng);
-                    send_agent_move_cloning_rev(lp);
+                    send_agent_move_cloning_rev(lp, state->x, state->y);
                 }
             }
             break;
@@ -227,10 +230,10 @@ void search_lp_event_commit(struct SearchCellState *state, tw_bf *bf, struct Sea
     switch (msg->type) {
         case MESSAGE_TYPE_agent_move:
             if (bf->c0) {
-                printf("Goal found at (%d,%d) at time %.2f!\n", state->x, state->y, tw_now(lp));
+                printf("PE %d - Goal found at (%d,%d) at time %.2f!\n", (int)g_tw_mynode, state->x, state->y, tw_now(lp));
             }
             if (bf->c2) {
-                printf("Agent stuck at (%d,%d) at time %.2f\n", state->x, state->y, tw_now(lp));
+                printf("PE %d - Agent stuck at (%d,%d) at time %.2f\n", (int)g_tw_mynode, state->x, state->y, tw_now(lp));
             }
             break;
         default:
